@@ -1,5 +1,6 @@
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
+import { GoogleSignInButton } from "@/components/auth/google-sign-in-button"
 import { SignUpForm } from "@/components/auth/sign-up-form"
 import {
   Card,
@@ -25,6 +26,7 @@ export default async function RegisterPage() {
           <CardDescription>Get started with your new account</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col items-center">
+          <GoogleSignInButton />
           <SignUpForm />
         </CardContent>
       </Card>

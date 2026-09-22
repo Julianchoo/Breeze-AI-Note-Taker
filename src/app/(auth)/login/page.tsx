@@ -1,5 +1,6 @@
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
+import { GoogleSignInButton } from "@/components/auth/google-sign-in-button"
 import { SignInButton } from "@/components/auth/sign-in-button"
 import {
   Card,
@@ -13,7 +14,7 @@ import { auth } from "@/lib/auth"
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ reset?: string }>
+  searchParams: Promise<{ reset?: string; google?: string }>
 }) {
   const session = await auth.api.getSession({ headers: await headers() })
 
@@ -21,7 +22,7 @@ export default async function LoginPage({
     redirect("/dashboard")
   }
 
-  const { reset } = await searchParams
+  const { reset, google } = await searchParams
 
   return (
     <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center p-4">
@@ -36,6 +37,12 @@ export default async function LoginPage({
               Password reset successfully. Please sign in with your new password.
             </p>
           )}
+          {google === "error" && (
+            <p role="alert" className="mb-4 text-sm text-destructive">
+              Google sign-in was not completed. Please try again.
+            </p>
+          )}
+          <GoogleSignInButton />
           <SignInButton />
         </CardContent>
       </Card>
