@@ -32,17 +32,17 @@ export function useDiagnostics() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  async function fetchDiagnostics() {
-    try {
-      const res = await fetch("/api/diagnostics", { cache: "no-store" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as DiagnosticsResponse;
-      setData(json);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load diagnostics");
-    } finally {
-      setLoading(false);
-    }
+  function fetchDiagnostics() {
+    return fetch("/api/diagnostics", { cache: "no-store" })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json() as Promise<DiagnosticsResponse>;
+      })
+      .then(setData)
+      .catch((e: unknown) => {
+        setError(e instanceof Error ? e.message : "Failed to load diagnostics");
+      })
+      .finally(() => setLoading(false));
   }
 
   function refetch() {
