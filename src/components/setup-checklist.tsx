@@ -47,12 +47,10 @@ function StatusIcon({ ok }: { ok: boolean }) {
 
 export function SetupChecklist() {
   const [data, setData] = useState<DiagnosticsResponse | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
-    setLoading(true);
-    setError(null);
     try {
       const res = await fetch("/api/diagnostics", { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -63,6 +61,12 @@ export function SetupChecklist() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function reload() {
+    setLoading(true);
+    setError(null);
+    return load();
   }
 
   useEffect(() => {
@@ -129,7 +133,7 @@ export function SetupChecklist() {
             {completed}/{steps.length} completed
           </p>
         </div>
-        <Button size="sm" onClick={load} disabled={loading}>
+        <Button size="sm" onClick={reload} disabled={loading}>
           {loading ? "Checking..." : "Re-check"}
         </Button>
       </div>

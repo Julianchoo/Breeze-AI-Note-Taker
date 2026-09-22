@@ -67,6 +67,12 @@ Quiero una app que sea un AI note taker. Basicamente quiero poder loguearme y to
 Tiene que darse cuenta las distintas personas que hablan
 Quiero poder ver tambien el transcript entero al final, pero sobre todo me importa el resumen.
 
+Tenes la openai api key en los envs para que el modelo sea el que quieras de openai, si necesitas otro proveedor avisame y busco
+
+Commitea en https://github.com/Julianchoo/Breeze-AI-Note-Taker.git
+
+Esto va a correr en vercel, ya tenemos una postgres url (todavia no hice ninguna migracion, solo agregue la url a los envs) y cree un blob db pero todavia no lo terminé de linkear, igualmente esta el blob token en los envs. Hagamoslo juntos eso porque creo que primero tengo que crear el proyecto en vercel y para eso necesito un commit en github
+
 ## Request
 
 Please help me transform this boilerplate into my actual application. **You MUST completely replace all existing boilerplate code** to match my project requirements. The current implementation is just temporary scaffolding that should be entirely removed and replaced.

@@ -33,8 +33,6 @@ export function useDiagnostics() {
   const [error, setError] = useState<string | null>(null);
 
   async function fetchDiagnostics() {
-    setLoading(true);
-    setError(null);
     try {
       const res = await fetch("/api/diagnostics", { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -45,6 +43,12 @@ export function useDiagnostics() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function refetch() {
+    setLoading(true);
+    setError(null);
+    return fetchDiagnostics();
   }
 
   useEffect(() => {
@@ -61,7 +65,7 @@ export function useDiagnostics() {
     data,
     loading,
     error,
-    refetch: fetchDiagnostics,
+    refetch,
     isAuthReady: Boolean(isAuthReady),
     isAiReady: Boolean(isAiReady),
   };
