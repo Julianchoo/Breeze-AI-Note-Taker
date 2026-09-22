@@ -14,7 +14,7 @@ Set these environment variables in the Breeze Vercel project, then redeploy:
 | `GOOGLE_CLIENT_SECRET` | Existing Google OAuth web client secret |
 | `POSTGRES_URL` | Project PostgreSQL connection string |
 
-`NEXT_PUBLIC_APP_URL` is optional for the auth client: when absent it uses the current origin. If already set in Vercel, set it to `https://breeze-ai-lime.vercel.app`, never localhost. Never expose secrets with a `NEXT_PUBLIC_` prefix.
+The auth client uses the current browser origin. `NEXT_PUBLIC_APP_URL` does not control authentication; it is still used for public site URLs such as the sitemap and robots file. Set it to `https://breeze-ai-lime.vercel.app` in production. Never expose secrets with a `NEXT_PUBLIC_` prefix.
 
 ## Google Cloud OAuth web client
 

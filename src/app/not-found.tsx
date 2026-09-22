@@ -1,28 +1,16 @@
 import Link from "next/link";
-import { FileQuestion } from "lucide-react";
 import { Button } from "@/components/ui/button";
-
 export default function NotFound() {
   return (
-    <div className="container mx-auto px-4 py-16">
-      <div className="max-w-md mx-auto text-center">
-        <div className="flex justify-center mb-6">
-          <FileQuestion className="h-16 w-16 text-muted-foreground" />
-        </div>
-        <h1 className="text-4xl font-bold mb-4">404</h1>
-        <h2 className="text-xl font-semibold mb-4">Page Not Found</h2>
-        <p className="text-muted-foreground mb-6">
-          The page you&apos;re looking for doesn&apos;t exist or has been moved.
-        </p>
-        <div className="flex gap-4 justify-center">
-          <Button asChild>
-            <Link href="/">Go home</Link>
-          </Button>
-          <Button variant="outline" asChild>
-            <Link href="/dashboard">Dashboard</Link>
-          </Button>
-        </div>
-      </div>
+    <div className="mx-auto flex max-w-md flex-col items-center gap-6 px-4 py-24 text-center">
+      <p className="text-muted-foreground font-mono text-sm">404</p>
+      <h1 className="text-2xl font-semibold">This page is not here</h1>
+      <p className="text-muted-foreground">
+        Return to your meetings to pick up where you left off.
+      </p>
+      <Button asChild>
+        <Link href="/meetings">My meetings</Link>
+      </Button>
     </div>
   );
 }

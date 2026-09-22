@@ -1,51 +1,34 @@
-import { headers } from "next/headers"
-import { redirect } from "next/navigation"
-import { GoogleSignInButton } from "@/components/auth/google-sign-in-button"
-import { SignInButton } from "@/components/auth/sign-in-button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import { auth } from "@/lib/auth"
-
-export default async function LoginPage({
+import { redirect } from "next/navigation";
+import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { getOptionalSession } from "@/lib/session";
+export const metadata = { title: "Sign in" };
+export default async function Login({
   searchParams,
 }: {
-  searchParams: Promise<{ reset?: string; google?: string }>
+  searchParams: Promise<{ google?: string }>;
 }) {
-  const session = await auth.api.getSession({ headers: await headers() })
-
-  if (session) {
-    redirect("/dashboard")
-  }
-
-  const { reset, google } = await searchParams
-
+  if (await getOptionalSession()) redirect("/meetings");
+  const { google } = await searchParams;
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center p-4">
+    <div className="flex min-h-[65vh] items-center justify-center px-4 py-16">
       <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle>Welcome back</CardTitle>
-          <CardDescription>Sign in to your account</CardDescription>
+        <CardHeader>
+          <CardTitle>Welcome to Breeze</CardTitle>
+          <CardDescription>Your conversations. A little clearer.</CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col items-center">
-          {reset === "success" && (
-            <p className="mb-4 text-sm text-green-600 dark:text-green-400">
-              Password reset successfully. Please sign in with your new password.
-            </p>
-          )}
-          {google === "error" && (
-            <p role="alert" className="mb-4 text-sm text-destructive">
-              Google sign-in was not completed. Please try again.
-            </p>
-          )}
+        <CardContent className="flex flex-col gap-6">
           <GoogleSignInButton />
-          <SignInButton />
+          {google === "error" && (
+            <p role="alert" className="text-destructive text-sm">
+              Google sign-in did not complete. Please try again.
+            </p>
+          )}
+          <p className="text-muted-foreground text-sm leading-6">
+            Sign in to record a meeting and keep your summaries, transcripts, and audio together.
+          </p>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

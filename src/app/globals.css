@@ -151,10 +151,12 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1;
   }
   :focus-visible {
-    @apply outline-2 outline-offset-2 outline-ring;
+    @apply outline-ring outline-2 outline-offset-2;
   }
 }
 
@@ -163,13 +165,9 @@
     @apply transition-all duration-200 ease-out;
   }
   .card-interactive:hover {
-    @apply shadow-md -translate-y-0.5;
+    @apply -translate-y-0.5 shadow-md;
   }
   .auth-bg {
-    background-image: radial-gradient(
-      circle at 50% 0%,
-      var(--accent) 0%,
-      transparent 50%
-    );
+    background-image: radial-gradient(circle at 50% 0%, var(--accent) 0%, transparent 50%);
   }
 }

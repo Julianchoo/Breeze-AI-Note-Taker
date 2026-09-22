@@ -1,90 +1,67 @@
 "use client";
-
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { User, LogOut } from "lucide-react";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { LogOut, NotebookPen } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useSession, signOut } from "@/lib/auth-client";
-
 export function UserProfile() {
   const { data: session, isPending } = useSession();
   const router = useRouter();
-
-  if (isPending) {
-    return <div>Loading...</div>;
-  }
-
-  if (!session) {
+  if (isPending) return <Skeleton className="size-9 rounded-full" />;
+  if (!session)
     return (
-      <div className="flex items-center gap-2">
-        <Link href="/login">
-          <Button variant="ghost" size="sm">
-            Sign in
-          </Button>
-        </Link>
-        <Link href="/register">
-          <Button size="sm">Sign up</Button>
-        </Link>
-      </div>
+      <Button variant="ghost" size="sm" asChild>
+        <Link href="/login">Sign in</Link>
+      </Button>
     );
+  async function leave() {
+    try {
+      const result = await signOut();
+      if (result.error) throw new Error();
+      router.replace("/");
+      router.refresh();
+    } catch {
+      toast.error("Could not sign out. Please try again.");
+    }
   }
-
-  const handleSignOut = async () => {
-    await signOut();
-    router.replace("/");
-    router.refresh();
-  };
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Avatar className="size-8 cursor-pointer hover:opacity-80 transition-opacity">
-          <AvatarImage
-            src={session.user?.image || ""}
-            alt={session.user?.name || "User"}
-            referrerPolicy="no-referrer"
-          />
-          <AvatarFallback>
-            {(
-              session.user?.name?.[0] ||
-              session.user?.email?.[0] ||
-              "U"
-            ).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
+        <Button variant="secondary" size="icon" className="rounded-full" aria-label="Account menu">
+          {(session.user.name[0] || "B").toUpperCase()}
+        </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel className="font-normal">
-          <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">
-              {session.user?.name}
-            </p>
-            <p className="text-xs leading-none text-muted-foreground">
-              {session.user?.email}
-            </p>
+      <DropdownMenuContent align="end" className="w-64">
+        <DropdownMenuLabel>
+          <div className="truncate">{session.user.name}</div>
+          <div className="text-muted-foreground truncate text-xs font-normal">
+            {session.user.email}
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link href="/profile" className="flex items-center">
-            <User className="mr-2 h-4 w-4" />
-            Your Profile
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleSignOut} variant="destructive">
-          <LogOut className="mr-2 h-4 w-4" />
-          Log out
-        </DropdownMenuItem>
+        <DropdownMenuGroup>
+          <DropdownMenuItem asChild>
+            <Link href="/meetings">
+              <NotebookPen />
+              My meetings
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={leave}>
+            <LogOut />
+            Sign out
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );

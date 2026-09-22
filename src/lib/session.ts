@@ -6,7 +6,7 @@ import { auth } from "@/lib/auth";
  * Protected routes that require authentication.
  * These are also configured in src/proxy.ts for optimistic redirects.
  */
-export const protectedRoutes = ["/chat", "/dashboard", "/profile"];
+export const protectedRoutes = ["/meetings", "/chat", "/dashboard", "/profile"];
 
 /**
  * Checks if the current request is authenticated.
@@ -19,7 +19,7 @@ export async function requireAuth() {
   const session = await auth.api.getSession({ headers: await headers() });
 
   if (!session) {
-    redirect("/");
+    redirect("/login");
   }
 
   return session;
@@ -42,7 +42,5 @@ export async function getOptionalSession() {
  * @returns True if the path requires authentication
  */
 export function isProtectedRoute(path: string): boolean {
-  return protectedRoutes.some(
-    (route) => path === route || path.startsWith(`${route}/`)
-  );
+  return protectedRoutes.some((route) => path === route || path.startsWith(`${route}/`));
 }

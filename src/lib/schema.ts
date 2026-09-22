@@ -1,4 +1,5 @@
-import { pgTable, text, timestamp, boolean, index } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, index, uuid, integer, doublePrecision, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
+import type { MeetingStatus, TranscriptSegment } from "./meeting-types";
 
 // IMPORTANT! ID fields should ALWAYS use UUID types, EXCEPT the BetterAuth tables.
 
@@ -80,3 +81,31 @@ export const verification = pgTable("verification", {
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
 });
+
+export const meetings = pgTable("meetings", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  status: text("status").$type<MeetingStatus>().default("recording").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  durationSeconds: doublePrecision("duration_seconds").default(0).notNull(),
+  expectedChunks: integer("expected_chunks"),
+  summary: text("summary"),
+  detectedLanguage: text("detected_language"),
+  error: text("error"),
+  leaseToken: uuid("lease_token"),
+  leaseUntil: timestamp("lease_until"),
+  failures: integer("failures").default(0).notNull(),
+  speakerReferences: jsonb("speaker_references").$type<{ name: string; data: string }[]>().default([]).notNull(),
+}, (table) => [index("meetings_user_created_idx").on(table.userId, table.createdAt)]);
+
+export const meetingChunks = pgTable("meeting_chunks", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  meetingId: uuid("meeting_id").notNull().references(() => meetings.id, { onDelete: "cascade" }),
+  index: integer("chunk_index").notNull(),
+  blobPath: text("blob_path").notNull(),
+  sha256: text("sha256").notNull(),
+  durationSeconds: doublePrecision("duration_seconds").notNull(),
+  segments: jsonb("segments").$type<TranscriptSegment[]>(),
+}, (table) => [uniqueIndex("meeting_chunks_meeting_index_unique").on(table.meetingId, table.index)]);
