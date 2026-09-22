@@ -11,20 +11,20 @@ export function SiteHeader() {
       >
         Skip to content
       </a>
-      <header className="bg-background border-b">
+      <header className="bg-background/70 border-border/60 sticky top-0 z-40 border-b backdrop-blur-md">
         <nav
-          className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6"
+          className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3.5 sm:px-6"
           aria-label="Main navigation"
         >
-          <Link
-            href="/"
-            aria-label="Breeze home"
-            className="flex items-center gap-2 text-xl font-semibold tracking-tight"
-          >
-            <Wind className="size-6" aria-hidden="true" />
-            breeze<span className="text-muted-foreground">.</span>
+          <Link href="/" aria-label="Breeze home" className="group flex items-center gap-2.5">
+            <span className="bg-primary/10 text-primary group-hover:bg-primary/15 flex size-8 items-center justify-center rounded-lg transition-colors duration-200">
+              <Wind className="size-4" aria-hidden="true" />
+            </span>
+            <span className="font-display text-2xl leading-none">
+              breeze<span className="text-primary">.</span>
+            </span>
           </Link>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <ModeToggle />
             <UserProfile />
           </div>

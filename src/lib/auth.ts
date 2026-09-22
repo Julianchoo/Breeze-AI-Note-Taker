@@ -12,20 +12,12 @@ export const auth = betterAuth({
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     },
   },
+  // Breeze signs people in with Google only. Email/password stayed enabled from
+  // the starter kit with no UI behind it, and its reset and verification mails
+  // were only ever written to the server console — so a reset could never reach
+  // anyone. Re-enabling it means building those flows and wiring a real mail
+  // provider; /forgot-password and /reset-password explain the situation.
   emailAndPassword: {
-    enabled: true,
-    sendResetPassword: async ({ user, url }) => {
-      // Log password reset URL to terminal (no email integration yet)
-      // eslint-disable-next-line no-console
-      console.log(`\n${"=".repeat(60)}\nPASSWORD RESET REQUEST\nUser: ${user.email}\nReset URL: ${url}\n${"=".repeat(60)}\n`)
-    },
-  },
-  emailVerification: {
-    sendOnSignUp: true,
-    sendVerificationEmail: async ({ user, url }) => {
-      // Log verification URL to terminal (no email integration yet)
-      // eslint-disable-next-line no-console
-      console.log(`\n${"=".repeat(60)}\nEMAIL VERIFICATION\nUser: ${user.email}\nVerification URL: ${url}\n${"=".repeat(60)}\n`)
-    },
+    enabled: false,
   },
 })

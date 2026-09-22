@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Mic, Monitor, Square, UploadCloud } from "lucide-react";
+import { Download, Mic, Monitor, ShieldCheck, Square, UploadCloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { captureAudio } from "@/lib/audio-recorder";
@@ -266,46 +266,57 @@ export function MeetingRecorder({
   return (
     <div className="space-y-6">
       {recoveries.length > 0 && phase === "idle" ? (
-        <div className="space-y-3 rounded-lg border p-4">
-          <h2 className="font-medium">Recover an unfinished recording</h2>
-          <p className="text-muted-foreground text-sm">
+        <section className="bg-card animate-fade-up rounded-2xl border p-5 sm:p-6">
+          <p className="eyebrow">Unfinished</p>
+          <h2 className="font-display mt-1.5 text-2xl">Pick up where you left off</h2>
+          <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
             Audio already saved on this device can be uploaded and processed. The last incomplete
             two-minute part may be unavailable after a browser interruption.
           </p>
-          {recoveries.map((item) => (
-            <div key={item.id} className="flex items-center justify-between gap-3">
-              <span className="truncate text-sm">
-                {item.title} · {item.chunks} parts
-              </span>
-              {item.chunks ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    active.current = item;
-                    void finish(item);
-                  }}
-                >
-                  Recover
-                </Button>
-              ) : (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() =>
-                    void deleteRecording(item.id).then(() =>
-                      setRecoveries((items) => items.filter((row) => row.id !== item.id))
-                    )
-                  }
-                >
-                  Dismiss empty recording
-                </Button>
-              )}
-            </div>
-          ))}
-        </div>
+          <div className="rule-fade my-5 h-px" />
+          <ul className="space-y-2">
+            {recoveries.map((item) => (
+              <li
+                key={item.id}
+                className="bg-muted/40 flex flex-wrap items-center justify-between gap-3 rounded-lg px-4 py-3"
+              >
+                <span className="min-w-0 flex-1 truncate text-sm">
+                  <span className="font-medium">{item.title}</span>
+                  <span className="text-muted-foreground"> · {item.chunks} parts</span>
+                </span>
+                {item.chunks ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      active.current = item;
+                      void finish(item);
+                    }}
+                  >
+                    <UploadCloud />
+                    Recover
+                  </Button>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      void deleteRecording(item.id).then(() =>
+                        setRecoveries((items) => items.filter((row) => row.id !== item.id))
+                      )
+                    }
+                  >
+                    Dismiss empty recording
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
       ) : null}
-      <div className="bg-card space-y-6 rounded-xl border p-6">
+
+      <div className="bg-card animate-fade-up rounded-2xl border p-5 shadow-sm sm:p-8">
+        {/* Step 1 — name. Quiet, it is the least important decision here. */}
         <div className="space-y-2">
           <label htmlFor="meeting-title" className="text-sm font-medium">
             Meeting name
@@ -317,50 +328,93 @@ export function MeetingRecorder({
             placeholder="e.g. Monday product catch-up"
             maxLength={160}
             disabled={busy}
+            className="h-11 rounded-lg"
           />
         </div>
-        <fieldset disabled={busy} className="space-y-3">
-          <legend className="mb-2 text-sm font-medium">What would you like to record?</legend>
-          <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-4">
-            <input
-              type="radio"
-              name="audio-source"
-              value="tab"
-              checked={mode === "tab"}
-              onChange={() => setMode("tab")}
-            />
-            <Monitor className="text-muted-foreground size-5" />
-            <span className="text-sm">
-              Microphone + meeting tab
-              <span className="text-muted-foreground block text-xs">
-                Choose the meeting tab and enable Share tab audio.
+
+        {/* Step 2 — source. Native radios styled as selectable cards via has-[:checked]. */}
+        <fieldset disabled={busy} className="mt-7 disabled:opacity-60">
+          <legend className="mb-3 text-sm font-medium">What would you like to record?</legend>
+          <div className="grid gap-2.5 sm:grid-cols-2">
+            <label className="group has-[:checked]:border-primary has-[:checked]:bg-primary/5 hover:bg-accent/40 focus-within:ring-ring/50 flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-colors focus-within:ring-[3px] has-[:disabled]:cursor-not-allowed">
+              <input
+                type="radio"
+                name="audio-source"
+                value="tab"
+                checked={mode === "tab"}
+                onChange={() => setMode("tab")}
+                className="accent-primary mt-0.5 size-4 shrink-0"
+              />
+              <Monitor className="text-muted-foreground group-has-[:checked]:text-primary size-5 shrink-0 transition-colors" />
+              <span className="min-w-0 text-sm font-medium">
+                Microphone + meeting tab
+                <span className="text-muted-foreground mt-1 block text-xs leading-relaxed font-normal">
+                  Choose the meeting tab and enable Share tab audio.
+                </span>
               </span>
-            </span>
-          </label>
-          <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-4">
-            <input
-              type="radio"
-              name="audio-source"
-              value="mic"
-              checked={mode === "mic"}
-              onChange={() => setMode("mic")}
-            />
-            <Mic className="text-muted-foreground size-5" />
-            <span className="text-sm">
-              Microphone only
-              <span className="text-muted-foreground block text-xs">
-                For conversations in the room or personal notes.
+            </label>
+            <label className="group has-[:checked]:border-primary has-[:checked]:bg-primary/5 hover:bg-accent/40 focus-within:ring-ring/50 flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-colors focus-within:ring-[3px] has-[:disabled]:cursor-not-allowed">
+              <input
+                type="radio"
+                name="audio-source"
+                value="mic"
+                checked={mode === "mic"}
+                onChange={() => setMode("mic")}
+                className="accent-primary mt-0.5 size-4 shrink-0"
+              />
+              <Mic className="text-muted-foreground group-has-[:checked]:text-primary size-5 shrink-0 transition-colors" />
+              <span className="min-w-0 text-sm font-medium">
+                Microphone only
+                <span className="text-muted-foreground mt-1 block text-xs leading-relaxed font-normal">
+                  For conversations in the room or personal notes.
+                </span>
               </span>
-            </span>
-          </label>
+            </label>
+          </div>
         </fieldset>
-        <div className="bg-muted/50 rounded-lg p-6 text-center">
-          <p className="font-mono text-4xl tabular-nums">
+
+        {/* Step 3 — the clock. The hero of this screen once the tape is rolling. */}
+        <div
+          className={`mt-7 rounded-2xl border px-4 py-8 text-center transition-colors duration-500 ${
+            phase === "recording"
+              ? "border-destructive/30 bg-destructive/5"
+              : phase === "saving"
+                ? "border-primary/30 bg-primary/5"
+                : "bg-muted/40"
+          }`}
+        >
+          <div className="flex items-center justify-center gap-2.5">
+            <span
+              className={`size-2.5 rounded-full transition-colors ${
+                phase === "recording"
+                  ? "bg-destructive animate-pulse-ring"
+                  : phase === "saving"
+                    ? "bg-primary"
+                    : "bg-muted-foreground/40"
+              }`}
+            />
+            <span className="eyebrow">
+              {phase === "recording"
+                ? "Recording"
+                : phase === "saving"
+                  ? "Saving"
+                  : phase === "starting"
+                    ? "Getting ready"
+                    : "Standing by"}
+            </span>
+          </div>
+          <p
+            className={`mt-5 font-mono text-5xl tracking-tight tabular-nums transition-colors duration-500 sm:text-6xl ${
+              phase === "recording" || phase === "saving" || phase === "stopped"
+                ? "text-foreground"
+                : "text-muted-foreground/45"
+            }`}
+          >
             {String(Math.floor(elapsed / 3600)).padStart(2, "0")}:
             {String(Math.floor(elapsed / 60) % 60).padStart(2, "0")}:
             {String(elapsed % 60).padStart(2, "0")}
           </p>
-          <p className="text-muted-foreground mt-2 text-sm" aria-live="polite">
+          <p className="text-muted-foreground mx-auto mt-4 max-w-xs text-sm" aria-live="polite">
             {phase === "recording"
               ? "Recording · keep this tab open"
               : phase === "saving"
@@ -368,59 +422,88 @@ export function MeetingRecorder({
                 : "Up to 4 hours · English & Spanish detected automatically"}
           </p>
         </div>
-        <p className="text-muted-foreground text-xs">
-          Let everyone know you are recording. Audio is kept privately. Use headphones to avoid
-          capturing speaker audio twice.
-        </p>
+
+        {/* Step 4 — the commitment. */}
+        <div className="mt-6">
+          {phase === "idle" || phase === "starting" ? (
+            <Button
+              size="lg"
+              className="w-full"
+              disabled={phase === "starting"}
+              onClick={() => void start()}
+            >
+              <Mic />
+              {phase === "starting" ? "Preparing recording…" : "Start recording"}
+            </Button>
+          ) : null}
+          {phase === "recording" ? (
+            <Button
+              size="lg"
+              variant="destructive"
+              className="w-full"
+              onClick={() => {
+                setPhase("saving");
+                recorder.current?.stop();
+              }}
+            >
+              <Square />
+              Stop & save meeting
+            </Button>
+          ) : null}
+          {phase === "stopped" && emergency.length === 0 ? (
+            <Button
+              size="lg"
+              variant="secondary"
+              className="w-full"
+              onClick={() => active.current && void finish(active.current)}
+            >
+              <UploadCloud />
+              Retry saving
+            </Button>
+          ) : null}
+        </div>
+
         {error ? (
-          <p role="alert" className="text-destructive text-sm">
+          <p
+            role="alert"
+            className="text-destructive border-destructive/30 bg-destructive/5 mt-4 rounded-xl border px-4 py-3 text-sm leading-relaxed"
+          >
             {error}
           </p>
         ) : null}
         {uploadStatus ? (
-          <p role="status" className="text-muted-foreground text-sm">
+          <p role="status" className="text-muted-foreground mt-4 text-center text-sm">
             {uploadStatus}
           </p>
         ) : null}
-        {phase === "idle" || phase === "starting" ? (
-          <Button
-            size="lg"
-            className="w-full"
-            disabled={phase === "starting"}
-            onClick={() => void start()}
-          >
-            <Mic />
-            {phase === "starting" ? "Preparing recording…" : "Start recording"}
-          </Button>
+
+        {emergency.length > 0 ? (
+          <div className="border-destructive/30 bg-destructive/5 mt-4 space-y-3 rounded-xl border p-4">
+            <p className="text-sm font-medium">Keep a copy before you leave</p>
+            <div className="flex flex-wrap gap-2">
+              {emergency.map((item) => (
+                <Button
+                  key={item.index}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => download(item.blob, item.index)}
+                >
+                  <Download />
+                  Part {item.index + 1}
+                </Button>
+              ))}
+            </div>
+          </div>
         ) : null}
-        {phase === "recording" ? (
-          <Button
-            size="lg"
-            className="w-full"
-            onClick={() => {
-              setPhase("saving");
-              recorder.current?.stop();
-            }}
-          >
-            <Square />
-            Stop & save meeting
-          </Button>
-        ) : null}
-        {phase === "stopped" && emergency.length === 0 ? (
-          <Button onClick={() => active.current && void finish(active.current)}>
-            <UploadCloud />
-            Retry saving
-          </Button>
-        ) : null}
-        {emergency.map((item) => (
-          <Button
-            key={item.index}
-            variant="outline"
-            onClick={() => download(item.blob, item.index)}
-          >
-            Download unsaved audio part {item.index + 1}
-          </Button>
-        ))}
+
+        <div className="rule-fade mt-7 h-px" />
+        <div className="mt-5 flex items-start gap-3">
+          <ShieldCheck className="text-muted-foreground mt-0.5 size-4 shrink-0" />
+          <p className="text-muted-foreground text-xs leading-relaxed">
+            Let everyone know you are recording. Audio is kept privately. Use headphones to avoid
+            capturing speaker audio twice.
+          </p>
+        </div>
       </div>
     </div>
   );

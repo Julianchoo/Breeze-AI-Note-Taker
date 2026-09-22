@@ -1,6 +1,6 @@
 # Design System
 
-This document defines the visual design system for the project. All new components and pages **must** follow these tokens, patterns, and conventions.
+This document defines the visual design system for the project — a warm editorial direction. All new components and pages **must** follow these tokens, patterns, and conventions.
 
 ---
 
@@ -8,173 +8,143 @@ This document defines the visual design system for the project. All new componen
 
 - **Framework:** Next.js (App Router) + React + TypeScript
 - **Styling:** Tailwind CSS v4 (CSS-first config via `@theme inline` in `globals.css` — no `tailwind.config.ts`)
-- **Components:** shadcn/ui (new-york style, neutral base)
+- **Components:** shadcn/ui (new-york style, neutral base structure, tokens overridden to the warm palette)
 - **Icons:** Lucide React
-- **Fonts:** Geist (sans) + Geist Mono (mono) via `next/font/google`
-- **Dark mode:** next-themes (class-based, system default)
+- **Fonts:** Geist (sans), Geist Mono (mono), Instrument Serif (display) — all via `next/font/google`
+- **Dark mode:** next-themes (class-based, system default, 3-way toggle: Light / Dark / System)
 - **Utilities:** `cn()` from `@/lib/utils` (clsx + tailwind-merge)
 
 ---
 
 ## Colors
 
-All values use the **oklch** color space. Colors are defined as CSS custom properties in `globals.css` and bridged to Tailwind via `@theme inline`.
+All values use the **oklch** color space, defined as CSS custom properties in `globals.css` and bridged to Tailwind via `@theme inline`.
+
+**Palette intent:** a warm arena-sand paper for the page, warm ink for text, and terracotta as the single brand accent — used sparingly (primary buttons, links, focus rings, small highlights), never as a large fill.
 
 ### Semantic Tokens
 
 | Token | Light | Dark | Usage |
 |---|---|---|---|
-| `background` | `oklch(1 0 0)` | `oklch(0.141 0.005 285.823)` | Page background |
-| `foreground` | `oklch(0.141 0.005 285.823)` | `oklch(0.985 0 0)` | Primary text |
-| `primary` | `oklch(0.21 0.034 270)` | `oklch(0.92 0.02 270)` | Buttons, links, accents |
-| `primary-foreground` | `oklch(0.985 0 0)` | `oklch(0.21 0.006 285.885)` | Text on primary |
-| `secondary` | `oklch(0.967 0.001 286.375)` | `oklch(0.274 0.006 286.033)` | Secondary buttons, subtle bg |
-| `secondary-foreground` | `oklch(0.21 0.006 285.885)` | `oklch(0.985 0 0)` | Text on secondary |
-| `muted` | `oklch(0.967 0.001 286.375)` | `oklch(0.274 0.006 286.033)` | Subdued backgrounds |
-| `muted-foreground` | `oklch(0.552 0.016 285.938)` | `oklch(0.705 0.015 286.067)` | Subdued text, placeholders |
-| `accent` | `oklch(0.96 0.012 270)` | `oklch(0.28 0.018 270)` | Hover backgrounds, highlights |
-| `accent-foreground` | `oklch(0.21 0.006 285.885)` | `oklch(0.985 0 0)` | Text on accent |
-| `destructive` | `oklch(0.577 0.245 27.325)` | `oklch(0.704 0.191 22.216)` | Error states, delete actions |
-| `card` | `oklch(1 0 0)` | `oklch(0.21 0.006 285.885)` | Card backgrounds |
-| `card-foreground` | `oklch(0.141 0.005 285.823)` | `oklch(0.985 0 0)` | Card text |
-| `popover` | `oklch(1 0 0)` | `oklch(0.21 0.006 285.885)` | Popover/dropdown bg |
-| `popover-foreground` | `oklch(0.141 0.005 285.823)` | `oklch(0.985 0 0)` | Popover/dropdown text |
-| `border` | `oklch(0.92 0.004 286.32)` | `oklch(1 0 0 / 10%)` | Borders, dividers |
-| `input` | `oklch(0.92 0.004 286.32)` | `oklch(1 0 0 / 15%)` | Input borders |
-| `ring` | `oklch(0.705 0.06 270)` | `oklch(0.552 0.05 270)` | Focus rings |
+| `background` | `oklch(0.973 0.008 82)` | `oklch(0.178 0.011 52)` | Page background |
+| `foreground` | `oklch(0.235 0.013 55)` | `oklch(0.952 0.008 84)` | Primary text |
+| `card` | `oklch(0.992 0.004 85)` | `oklch(0.221 0.013 52)` | Card backgrounds |
+| `card-foreground` | `oklch(0.235 0.013 55)` | `oklch(0.952 0.008 84)` | Card text |
+| `popover` | `oklch(0.992 0.004 85)` | `oklch(0.221 0.013 52)` | Popover/dropdown bg |
+| `popover-foreground` | `oklch(0.235 0.013 55)` | `oklch(0.952 0.008 84)` | Popover/dropdown text |
+| `primary` | `oklch(0.552 0.128 38)` | `oklch(0.708 0.132 42)` | Buttons, links, brand accent |
+| `primary-foreground` | `oklch(0.985 0.006 85)` | `oklch(0.198 0.015 46)` | Text on primary |
+| `secondary` | `oklch(0.932 0.013 78)` | `oklch(0.272 0.013 52)` | Secondary buttons, subtle bg |
+| `secondary-foreground` | `oklch(0.3 0.016 52)` | `oklch(0.952 0.008 84)` | Text on secondary |
+| `muted` | `oklch(0.941 0.011 78)` | `oklch(0.272 0.013 52)` | Subdued backgrounds |
+| `muted-foreground` | `oklch(0.512 0.019 58)` | `oklch(0.722 0.016 72)` | Subdued text, placeholders |
+| `accent` | `oklch(0.921 0.029 58)` | `oklch(0.302 0.026 48)` | Hover backgrounds, highlights |
+| `accent-foreground` | `oklch(0.3 0.016 52)` | `oklch(0.952 0.008 84)` | Text on accent |
+| `destructive` | `oklch(0.545 0.204 27.5)` | `oklch(0.696 0.178 25)` | Error states, delete actions |
+| `success` | `oklch(0.55 0.1 155)` | `oklch(0.72 0.13 158)` | Success states (e.g. "Ready" badge) |
+| `border` | `oklch(0.885 0.013 72)` | `oklch(0.92 0.02 70 / 13%)` | Borders, dividers |
+| `input` | `oklch(0.885 0.013 72)` | `oklch(0.92 0.02 70 / 17%)` | Input borders |
+| `ring` | `oklch(0.552 0.128 38)` | `oklch(0.708 0.132 42)` | Focus rings |
 
 ### Chart Colors
 
 | Token | Light | Dark |
 |---|---|---|
-| `chart-1` | `oklch(0.646 0.222 41.116)` | `oklch(0.488 0.243 264.376)` |
-| `chart-2` | `oklch(0.6 0.118 184.704)` | `oklch(0.696 0.17 162.48)` |
-| `chart-3` | `oklch(0.398 0.07 227.392)` | `oklch(0.769 0.188 70.08)` |
-| `chart-4` | `oklch(0.828 0.189 84.429)` | `oklch(0.627 0.265 303.9)` |
-| `chart-5` | `oklch(0.769 0.188 70.08)` | `oklch(0.645 0.246 16.439)` |
+| `chart-1` | `oklch(0.552 0.128 38)` | `oklch(0.708 0.132 42)` |
+| `chart-2` | `oklch(0.62 0.085 62)` | `oklch(0.75 0.09 68)` |
+| `chart-3` | `oklch(0.55 0.1 155)` | `oklch(0.72 0.13 158)` |
+| `chart-4` | `oklch(0.7 0.11 82)` | `oklch(0.8 0.11 85)` |
+| `chart-5` | `oklch(0.45 0.07 30)` | `oklch(0.62 0.1 22)` |
 
 ### Sidebar Colors
 
 | Token | Light | Dark |
 |---|---|---|
-| `sidebar` | `oklch(0.985 0 0)` | `oklch(0.21 0.006 285.885)` |
-| `sidebar-foreground` | `oklch(0.141 0.005 285.823)` | `oklch(0.985 0 0)` |
-| `sidebar-primary` | `oklch(0.21 0.006 285.885)` | `oklch(0.488 0.243 264.376)` |
-| `sidebar-primary-foreground` | `oklch(0.985 0 0)` | `oklch(0.985 0 0)` |
-| `sidebar-accent` | `oklch(0.967 0.001 286.375)` | `oklch(0.274 0.006 286.033)` |
-| `sidebar-accent-foreground` | `oklch(0.21 0.006 285.885)` | `oklch(0.985 0 0)` |
-| `sidebar-border` | `oklch(0.92 0.004 286.32)` | `oklch(1 0 0 / 10%)` |
-| `sidebar-ring` | `oklch(0.705 0.015 286.067)` | `oklch(0.552 0.016 285.938)` |
+| `sidebar` | `oklch(0.955 0.01 80)` | `oklch(0.198 0.012 52)` |
+| `sidebar-foreground` | `oklch(0.235 0.013 55)` | `oklch(0.952 0.008 84)` |
+| `sidebar-primary` | `oklch(0.552 0.128 38)` | `oklch(0.708 0.132 42)` |
+| `sidebar-primary-foreground` | `oklch(0.985 0.006 85)` | `oklch(0.198 0.015 46)` |
+| `sidebar-accent` | `oklch(0.921 0.029 58)` | `oklch(0.302 0.026 48)` |
+| `sidebar-accent-foreground` | `oklch(0.3 0.016 52)` | `oklch(0.952 0.008 84)` |
+| `sidebar-border` | `oklch(0.885 0.013 72)` | `oklch(0.92 0.02 70 / 13%)` |
+| `sidebar-ring` | `oklch(0.552 0.128 38)` | `oklch(0.708 0.132 42)` |
 
-### Ad-hoc Status Colors
+### Fixed-Color Exception
 
-Use these Tailwind utilities for status indicators — they are not part of the token system but are used consistently:
-
-- **Success:** `text-green-600` / `dark:text-green-400`, `bg-green-500`
-- **Error:** `text-red-600`, `text-destructive`
+The Google "G" mark (`GoogleMark` in `google-sign-in-button.tsx`) uses Google's fixed brand colors (`#4285F4`, `#34A853`, `#FBBC05`, `#EA4335`) instead of tokens — a deliberate, documented exception because the mark's colors are fixed by Google's identity guidelines. It sits in a white chip (`bg-white`) so it stays legible on the terracotta button.
 
 ---
 
 ## Typography
 
-### Font Families
+### Three Families, Three Jobs
 
-| Token | Font | Usage |
+| Token / class | Font | Usage |
 |---|---|---|
-| `--font-geist-sans` | Geist | All UI text (applied to body) |
-| `--font-geist-mono` | Geist Mono | Code, monospace content |
+| `font-sans` (default, `--font-geist-sans`) | Geist | All UI body text — the default on `<body>` |
+| `font-mono` (`--font-geist-mono`) | Geist Mono | Timestamps, durations, dates, counts, prices, step numbers — anything numeric/tabular. Pair with `tabular-nums`. |
+| `font-display` (`.font-display`, `--font-instrument-serif`) | Instrument Serif | Large headings and markdown titles only |
 
-Body has `font-feature-settings: "rlig" 1, "calt" 1` and `antialiased` enabled.
+**`font-display` rule:** weight 400, `letter-spacing: -0.015em`, falls back to Georgia/serif. Used for `h1`/`h2` page and section headings (`text-2xl` and up), `CardTitle`, and markdown `h1`/`h2` inside the AI summary prose. **Never** used for body text, buttons, labels, badges, or anything small — those stay on `font-sans`.
 
-### Type Scale
+**`font-mono` rule:** used for dates (`<time>` elements), durations (`12:34`), the recorder's stopwatch, audio-part selectors, segment timestamps, prices (`usd()` helper), meeting counts, the `404`/`Error` eyebrow label, and step numbers (`01`, `02`, `03` on the homepage). Always combined with `tabular-nums` where digits shift.
 
-| Class | Size | Usage |
-|---|---|---|
-| `text-xs` | 12px | Timestamps, shortcuts, helper text, code |
-| `text-sm` | 14px | Descriptions, labels, body copy, card descriptions |
-| `text-base` | 16px | Base text, inputs (mobile) |
-| `text-lg` | 18px | Dialog titles, sub-headings |
-| `text-xl` | 20px | Section titles, header logo |
-| `text-2xl` | 24px | Page titles, card titles |
-| `text-3xl` | 30px | Dashboard/profile headings |
-| `text-4xl` | 36px | Large display text |
-| `text-5xl` | 48px | Hero title |
-
-### Font Weights
-
-| Class | Weight | Usage |
-|---|---|---|
-| `font-medium` | 500 | Buttons, labels, nav items |
-| `font-semibold` | 600 | Card titles, section headings, badges, dialog titles |
-| `font-bold` | 700 | Page titles, hero heading |
-
-### Line Heights & Tracking
+### Observed Type Scale
 
 | Class | Usage |
 |---|---|
-| `leading-none` | Labels, card titles |
-| `leading-5` | Code blocks |
-| `leading-6` | List items |
-| `leading-7` | Paragraphs (markdown) |
-| `tracking-tight` | Hero/display text |
-| `tracking-widest` | Keyboard shortcuts |
+| `text-[0.6875rem]` | `.eyebrow` label, markdown `h3` (section label), speaker labels |
+| `text-xs` | Helper text, footer, timestamps, badges |
+| `text-sm` | Body copy, descriptions, labels, list metadata |
+| `text-[0.9375rem]` | Reading prose (summary, transcript segments) |
+| `text-base` | Form descriptions, auth subheading |
+| `text-lg` | Dialog titles |
+| `text-2xl` | Card titles, section headings (`font-display`) |
+| `text-3xl` | Sub-page headings, error/loading headings (`font-display`) |
+| `text-4xl` | Page h1 on secondary pages (`font-display`) |
+| `text-5xl` | Page h1 on primary pages / hero on small screens (`font-display`) |
+| `text-6xl` | "My meetings" h1 on `sm+` (`font-display`) |
+| `text-7xl` / `text-8xl` | Homepage hero h1 on `sm+` / `lg+` (`font-display`) |
+
+### Weights & Tracking
+
+| Class | Usage |
+|---|---|
+| `font-medium` | Buttons, form labels, list item titles |
+| `font-semibold` | `strong` in markdown prose |
+| `.eyebrow` | `text-muted-foreground text-[0.6875rem] font-medium tracking-[0.18em] uppercase` — a small-caps label sitting above a heading |
+| `tracking-tight` / `tracking-[-0.015em]` | Hero/display text (built into `.font-display`) |
+| `tracking-widest` | Keyboard/dropdown shortcuts |
+
+### Line Heights
+
+`leading-[0.95]` (hero h1), `leading-[1.05]`/`leading-[1.1]` (page h1), `leading-tight`/`leading-snug` (headings), `leading-6`/`leading-7`/`leading-8` (body/paragraphs), `leading-none` (labels).
 
 ---
 
-## Spacing
+## Custom Utilities (`@layer utilities` in `globals.css`)
 
-### Container Pattern
-
-```
-container mx-auto px-4
-```
-
-Responsive overrides where needed:
-- Header: `px-3 sm:px-4`
-- Footer: `px-4 sm:px-6 lg:px-8`
-
-### Max Widths
-
-| Class | Value | Usage |
+| Class | What it does | When to use |
 |---|---|---|
-| `max-w-sm` | 24rem | Auth forms |
-| `max-w-md` | 28rem | Login/register cards, error pages |
-| `max-w-lg` | 32rem | Dialog content (sm+) |
-| `max-w-2xl` | 42rem | Large dialogs |
-| `max-w-3xl` | 48rem | Embeds, protected state |
-| `max-w-4xl` | 56rem | Main content pages |
+| `.font-display` | Applies Instrument Serif, weight 400, `letter-spacing: -0.015em`, Georgia fallback | Large headings, markdown h1/h2 — see Typography |
+| `.eyebrow` | Small-caps label: `text-muted-foreground text-[0.6875rem] font-medium tracking-[0.18em] uppercase` | Sits above a page or section heading ("Your workspace", "Sign in", "New recording") |
+| `.glow-bg` | Two soft radial gradients (top-center in `primary`, upper-right in `chart-2`) bleeding into the page background | Wraps full-bleed page sections: homepage, meeting list, meeting detail, 404, error |
+| `.auth-bg` | A single soft radial gradient in `primary`, centered at the top | Wraps the `(auth)` layout only |
+| `.rule-fade` | `linear-gradient` hairline that fades to transparent at both ends (`to right, transparent, border 15%, border 85%, transparent`) | Divider between a header and its content, or between sections — used instead of a plain `<hr>`/`Separator` on editorial pages |
+| `.card-interactive` | `transition-[transform,box-shadow,border-color] duration-300 ease-out`; on hover: `border-primary/30 -translate-y-0.5` + a soft custom drop shadow | Interactive cards that lift on hover |
 
-### Vertical Spacing (space-y)
+### Animations
 
-| Class | Usage |
-|---|---|
-| `space-y-1` | Tight lists, inline stacks |
-| `space-y-1.5` | Card header |
-| `space-y-2` | Form field groups, small stacks |
-| `space-y-3` | Footer stacks |
-| `space-y-4` | Form sections, dialog content |
-| `space-y-6` | Card content sections |
-| `space-y-8` | Page-level sections |
+| Class | Keyframe effect | Duration / easing |
+|---|---|---|
+| `animate-fade-in` | opacity 0 → 1 | 0.3s ease-out |
+| `animate-fade-up` | opacity 0 → 1, `translateY(12px → 0)` | 0.5s `cubic-bezier(0.16, 1, 0.3, 1)`, `both` |
+| `animate-scale-in` | opacity 0 → 1, `scale(0.97 → 1)` | 0.2s ease-out |
+| `animate-pulse-ring` | expanding `box-shadow` ring in `destructive`, fading to transparent | 2s ease-out infinite |
 
-### Padding
+**Entrance stagger pattern:** sections use `animate-fade-up` combined with an arbitrary `[animation-delay:NNNms]` property, e.g. `className="animate-fade-up [animation-delay:120ms]"`. This ordering (named utility first, arbitrary property second) matters because Tailwind v4 emits arbitrary properties **after** named utilities in the generated stylesheet, so the delay is guaranteed to win regardless of source order elsewhere. Stagger values observed: `80ms`, `120ms`, `220ms`, `300ms`.
 
-| Class | Usage |
-|---|---|
-| `p-1` | Dropdown content, icon buttons |
-| `p-2` | Code blocks, muted backgrounds |
-| `p-3` | Chat bubbles, inputs |
-| `p-4` | Grid items, action buttons, list items |
-| `p-6` | Cards, dialog content |
-
-### Page Vertical Padding
-
-| Class | Usage |
-|---|---|
-| `py-3 sm:py-4` | Header |
-| `py-4 sm:py-6` | Footer |
-| `py-8` | Standard content pages |
-| `py-12` | Home page, dashboard |
-| `py-16` | Error/not-found pages |
+`animate-pulse-ring` is also used directly on small dots (e.g. the "Recording" status dot) rather than only through a wrapping utility.
 
 ---
 
@@ -182,134 +152,118 @@ Responsive overrides where needed:
 
 | Token | Value | Class |
 |---|---|---|
-| `--radius` | `0.625rem` (10px) | Base |
-| `--radius-sm` | `calc(--radius - 4px)` = 6px | `rounded-sm` |
-| `--radius-md` | `calc(--radius - 2px)` = 8px | `rounded-md` |
-| `--radius-lg` | `var(--radius)` = 10px | `rounded-lg` |
-| `--radius-xl` | `calc(--radius + 4px)` = 14px | `rounded-xl` |
+| `--radius` | `0.75rem` (12px) | Base |
+| `--radius-sm` | `calc(--radius - 4px)` = 8px | `rounded-sm` |
+| `--radius-md` | `calc(--radius - 2px)` = 10px | `rounded-md` |
+| `--radius-lg` | `var(--radius)` = 12px | `rounded-lg` |
+| `--radius-xl` | `calc(--radius + 4px)` = 16px | `rounded-xl` |
+| `--radius-2xl` | `calc(--radius + 10px)` = 22px | `rounded-2xl` |
 | — | 9999px | `rounded-full` |
 
 **Usage:**
-- `rounded-md` — Buttons, inputs, textarea, code blocks, dropdowns
-- `rounded-lg` — Cards, dialogs, feature cards, chat bubbles
-- `rounded-xl` — Hero logo container
-- `rounded-full` — Badges, avatars
+- `rounded-full` — **Button** (all variants/sizes except `icon`), badges, avatars, header logo chip, icon-only pills, search input on the meeting list
+- `rounded-lg` — Button `icon` size, header logo container, header dropdown items
+- `rounded-xl` — Card, Dialog, dropdown menu content, empty-state icon circle background container, list row icon chip
+- `rounded-2xl` — Larger content cards/sections (summary card, processing card, recorder card, empty-state dashed panel)
+- `rounded-md` — Input, textarea, code, dropdown separator corners
 
 ---
 
 ## Shadows
 
-| Class | Usage |
+| Usage | Value |
 |---|---|
-| `shadow-xs` | Inputs, textarea, secondary/outline buttons |
-| `shadow-sm` | Card base |
-| `shadow-md` | Card hover, dropdown content |
-| `shadow-lg` | Dialogs, dropdown sub-content |
+| Card base | Custom: `shadow-[0_1px_2px_0_color-mix(in_oklch,var(--foreground)_6%,transparent)]` (subtle, tinted by foreground, not a flat gray) |
+| `.card-interactive` hover | Custom: `box-shadow: 0 10px 30px -16px color-mix(in oklch, var(--foreground) 40%, transparent)` |
+| Buttons, inputs, textarea | `shadow-xs` (Tailwind default) |
+| Dropdown/dialog content | `shadow-md` / `shadow-lg` (Tailwind default) |
 
-No custom shadow definitions — all Tailwind defaults.
+Card shadows are `color-mix`-based (tinted by the `foreground` token) rather than flat Tailwind grays — this keeps them warm in both themes.
 
 ---
 
-## Animations
+## Spacing & Layout
 
-### Custom Keyframes
+### Page wrapper pattern
 
-| Name | Effect | Duration | Easing |
-|---|---|---|---|
-| `fade-in` | Opacity 0 → 1 | 0.3s | ease-out |
-| `fade-up` | Opacity 0 → 1 + translateY(8px → 0) | 0.4s | ease-out |
-| `scale-in` | Opacity 0 → 1 + scale(0.97 → 1) | 0.2s | ease-out |
+Full-bleed editorial pages are **not** wrapped in the plain `container mx-auto px-4` pattern from the old system. Instead:
 
-Use via: `animate-fade-in`, `animate-fade-up`, `animate-scale-in`
+```
+<div className="glow-bg">              (or .auth-bg for the auth layout)
+  <div className="mx-auto max-w-{N} px-4 pt-{N} pb-{N} sm:px-6 sm:pt-{N} sm:pb-{N}">
+    ...
+  </div>
+</div>
+```
 
-### tw-animate-css Animations
-
-Used on dialogs and dropdowns:
-- `animate-in` / `animate-out`
-- `fade-in-0` / `fade-out-0`
-- `zoom-in-95` / `zoom-out-95`
-- `slide-in-from-{top|bottom|left|right}-2`
-
-### Transition Classes
+### Max Widths (observed)
 
 | Class | Usage |
 |---|---|
-| `transition-colors` | Links, hover color changes |
-| `transition-opacity` | Avatar hover, reveal-on-hover |
-| `transition-all duration-200` | Card interactive hover, buttons |
-| `transition-[color,box-shadow]` | Input/textarea focus |
+| `max-w-md` | Auth card wrapper, 404/error content |
+| `max-w-2xl` | New-meeting page |
+| `max-w-3xl` | Homepage hero copy block |
+| `max-w-4xl` | Meeting detail page |
+| `max-w-5xl` | Meeting list page |
+| `max-w-6xl` | Homepage, site header, site footer |
 
-### Utility Classes
-
-```css
-.card-interactive {
-  @apply transition-all duration-200 ease-out;
-}
-.card-interactive:hover {
-  @apply shadow-md -translate-y-0.5;
-}
-```
-
-```css
-.auth-bg {
-  background-image: radial-gradient(
-    circle at 50% 0%,
-    var(--accent) 0%,
-    transparent 50%
-  );
-}
-```
-
----
-
-## Layout
-
-### Root Structure
+### Page Header Pattern
 
 ```
-<body class="antialiased min-h-screen flex flex-col">
-  <SiteHeader />
-  <main id="main-content" class="flex-1">{children}</main>
-  <SiteFooter />
-  <Toaster />
-</body>
+<header className="animate-fade-up flex flex-col gap-3 (or justify-between for list pages)">
+  <p className="eyebrow">Section label</p>
+  <h1 className="font-display text-4xl sm:text-5xl leading-[1.1]">Page title</h1>
+  <p className="text-muted-foreground text-sm sm:text-base leading-6">Subcopy</p>
+</header>
+<div className="rule-fade mt-10 sm:mt-14 h-px" />
 ```
 
-### Page Layout Patterns
+### List Row Pattern (meeting list)
 
-**Auth pages:**
 ```
-flex min-h-[calc(100vh-4rem)] items-center justify-center p-4
-  → Card w-full max-w-md
+<ul className="border-border/70 divide-y border-y">
+  <li><Link className="group hover:bg-accent/40 -mx-3 flex items-center gap-3 rounded-lg px-3 py-5 transition-colors">
+    <div className="bg-muted group-hover:bg-primary/10 size-10 rounded-lg">...icon...</div>
+    <div className="min-w-0 flex-1">...title + font-mono meta...</div>
+    <Badge variant={...}>...</Badge>
+    <ArrowUpRight className="group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+  </Link></li>
+</ul>
 ```
 
-**Standard content pages:**
+### Empty State Pattern
+
+Dashed border, `rounded-2xl`, centered icon in a `rounded-full bg-muted` chip, `font-display` heading, `text-muted-foreground` body, optional CTA button:
+
 ```
-container mx-auto px-4 py-8
-  → max-w-4xl mx-auto
+<div className="border-border/70 flex flex-col items-center gap-5 rounded-2xl border border-dashed px-6 py-16 text-center sm:py-24">
+  <span className="bg-muted flex size-14 items-center justify-center rounded-full"><Icon /></span>
+  <h2 className="font-display text-2xl sm:text-3xl">...</h2>
+  <p className="text-muted-foreground mx-auto max-w-sm text-sm leading-6">...</p>
+  <Button asChild size="lg">...</Button>
+</div>
 ```
 
-**Error/not-found pages:**
-```
-container mx-auto px-4 py-16
-  → max-w-md mx-auto text-center
-```
+### Error State Pattern
+
+Two forms observed:
+1. **Full page** (`not-found.tsx`, `error.tsx`): `.glow-bg` wrapper, centered `max-w-md`, `font-mono text-xs` eyebrow ("404"/"Error"), `font-display text-4xl sm:text-5xl` heading, muted body, one or two `size="lg"` buttons.
+2. **Inline alert** (form/section errors): `role="alert"`, tinted border+background at low opacity — `border-destructive/25 bg-destructive/5` (or `/10`, `/8` depending on context) with a `TriangleAlert` icon plus text, never color alone.
+
+### Skeleton Pattern
+
+`Skeleton` (`bg-accent animate-pulse rounded-md`) shapes are composed to mirror the real layout (e.g. row: `size-10 rounded-lg` icon + two text-line bars + a `rounded-full` badge-shaped bar), wrapped in a container with `role="status" aria-busy="true"`.
 
 ### Grid Patterns
 
 | Pattern | Usage |
 |---|---|
-| `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6` | Feature cards (4-col) |
-| `grid grid-cols-1 md:grid-cols-2 gap-6` | Dashboard cards |
-| `grid grid-cols-1 md:grid-cols-2 gap-4` | Profile info |
-| `grid grid-cols-1 md:grid-cols-3 gap-4` | Quick actions |
+| `grid md:grid-cols-3` with bordered/divided columns | Homepage "how it works" steps |
+| `grid gap-2.5 sm:grid-cols-2` of `has-[:checked]:` styled label cards | Recorder audio-source picker |
 
 ### Responsive Breakpoints
 
-Standard Tailwind breakpoints:
-- `sm:` (640px) — Padding adjustments, text alignment, button sizing
-- `md:` (768px) — Grid column changes (→ 2 col), input font size
-- `lg:` (1024px) — Grid column changes (→ 4 col), wide padding
+Standard Tailwind breakpoints — `sm:` (640px) for padding/type-size steps, `md:` (768px) for column changes, `lg:`/`sm:` further steps on hero type.
 
 ---
 
@@ -321,131 +275,120 @@ Standard Tailwind breakpoints:
 
 | Size | Classes | Usage |
 |---|---|---|
-| XS | `h-3 w-3` | Inline badge icons |
-| SM | `h-3.5 w-3.5` | Copy buttons |
-| Default | `h-4 w-4` or `size-4` | Standard UI icons |
-| MD | `h-5 w-5` | Header logo icon |
-| LG | `h-7 w-7` | Hero logo icon |
-| XL | `h-16 w-16` | Error/empty state illustrations |
+| XS | `size-3` | Badge inline icons (e.g. inside `Badge`) |
+| SM | `size-3.5` | Google mark, small inline icons |
+| Default | `size-4` (implicit via `[&_svg:not([class*='size-'])]:size-4` on Button) | Standard UI icons, button icons |
+| MD | `size-5` | Section heading icons, empty-state alert icon |
+| LG | `size-6` | Empty-state search/mic icon circle |
+| XL | — | No oversized (`h-16`) illustration icons observed; empty states use `size-14` circular chips instead |
 
-### Commonly Used Icons
+### Icons in use
 
-`Bot`, `User`, `Lock`, `Shield`, `Mail`, `Calendar`, `Copy`, `Check`, `Loader2`, `LogOut`, `Sun`, `Moon`, `Github`, `ArrowLeft`, `RefreshCw`, `AlertCircle`, `FileQuestion`, `Database`, `Palette`, `Video`
+`Mic`, `Square`, `Monitor`, `UploadCloud`, `Download`, `ShieldCheck`, `AudioLines`, `AppWindow`, `Search`, `Plus`, `ArrowUpRight`, `ArrowLeft`, `TriangleAlert`, `RotateCcw`, `Pencil`, `Trash2`, `Check`, `ChevronDown`, `Loader2`, `Wind` (logo mark), `NotebookPen`, `LogOut`, `FileText`.
 
 ---
 
-## Components (shadcn/ui)
-
-All components live in `src/components/ui/`. They use `data-slot` attributes, accept `className` for overrides via `cn()`, and follow either `React.forwardRef` or functional component patterns.
+## Components (shadcn/ui, `src/components/ui/`)
 
 ### Button
 
-6 variants, 4 sizes (CVA-based):
+`rounded-full` base (not `rounded-md`). 6 variants, 4 sizes (CVA-based). `active:scale-[0.98]` on press.
 
 | Variant | Usage |
 |---|---|
-| `default` | Primary actions |
-| `secondary` | Secondary actions |
-| `outline` | Tertiary actions |
+| `default` | Primary actions — `bg-primary` |
+| `destructive` | Delete/danger — `bg-destructive text-white` |
+| `outline` | Tertiary — `border bg-background`, `dark:bg-input/30` |
+| `secondary` | Secondary actions — `bg-secondary` |
 | `ghost` | Subtle/icon actions |
-| `destructive` | Delete/danger actions |
-| `link` | Inline text links |
+| `link` | Inline text link |
 
-| Size | Height | Padding |
-|---|---|---|
-| `sm` | h-8 | px-3 |
-| `default` | h-9 | px-4 |
-| `lg` | h-10 | px-6 |
-| `icon` | size-9 | — |
+| Size | Height | Padding | Notes |
+|---|---|---|---|
+| `sm` | h-8 | px-3.5 | `gap-1.5` |
+| `default` | h-10 | px-5 | `has-[>svg]:px-4` |
+| `lg` | h-12 | px-7 | `text-[0.9375rem]` |
+| `icon` | size-9 | — | Only size that is `rounded-lg`, not `rounded-full` |
 
 ### Card
 
-6 sub-components: `Card`, `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, `CardFooter`
+`Card`, `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, `CardFooter`.
 
-Base: `rounded-lg border bg-card text-card-foreground shadow-sm`
+Base: `rounded-xl border bg-card text-card-foreground` + custom color-mix shadow (see Shadows). `CardTitle` is `font-display text-2xl leading-tight tracking-tight` (serif, not the old `font-semibold` sans title).
 
-### Input / Textarea
+### Input
 
-- Height: `h-9` (input), `min-h-16` (textarea)
-- Border: `border bg-transparent rounded-md shadow-xs`
-- Focus: `focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]`
-- Validation: `aria-invalid:border-destructive aria-invalid:ring-destructive/20`
-- Responsive font: `text-base md:text-sm`
+`h-9 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs`, focus via `focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]`, `aria-invalid:border-destructive`. Pages frequently override height/radius per context (e.g. `h-11 rounded-lg` on the search box).
 
 ### Badge
 
-4 variants: `default`, `secondary`, `destructive`, `outline`
+5 variants now — **`success` is new**:
 
-Base: `rounded-full border px-2.5 py-0.5 text-xs font-semibold`
+| Variant | Style |
+|---|---|
+| `default` | `bg-primary text-primary-foreground` |
+| `secondary` | `bg-secondary text-secondary-foreground` |
+| `destructive` | `border-destructive/25 bg-destructive/12 text-destructive` (tinted, not solid) |
+| `success` | `border-success/25 bg-success/12 text-success` |
+| `outline` | `text-muted-foreground` |
+
+Base: `rounded-full border px-2.5 py-0.5 text-xs font-medium tracking-wide` with `[&>svg]:size-3`. Used with a leading `animate-pulse-ring` dot for the "Recording" state, and a `Loader2` spin icon for "processing" — status is never color-only.
 
 ### Dialog
 
-Radix-based with overlay (`bg-black/50`), fade + zoom animations, optional close button.
+Radix-based. Overlay `bg-black/50`. Content: `rounded-lg border p-6 shadow-lg`, `sm:max-w-lg`, fade + zoom (`zoom-in-95`/`zoom-out-95`) animations. `DialogTitle` is plain `text-lg font-semibold` (not display serif).
 
 ### DropdownMenu
 
-Radix-based. Content: `rounded-md border p-1 shadow-md min-w-[8rem]`. Items support a `destructive` variant.
+Radix-based. Content: `rounded-md border p-1 shadow-md min-w-[8rem]`. Items support a `data-variant="destructive"` state. Consumers may override radius/padding on `DropdownMenuContent` (user menu uses `rounded-xl p-1.5`).
+
+### Avatar
+
+`size-8` default (`Avatar`, `AvatarImage`, `AvatarFallback`), `rounded-full`. User menu overrides to `size-9 border border-border`. Fallback shows the first letter of the user's name on `bg-muted`/`bg-secondary`.
+
+### Separator
+
+`bg-border`, `h-[1px] w-full` (horizontal) or `h-full w-[1px]` (vertical). Editorial pages generally prefer `.rule-fade` over `Separator` for section breaks; `Separator`/`DropdownMenuSeparator` remain for menu/form dividers.
 
 ### Spinner
 
-Sizes: `sm` (h-4 w-4), `md` (h-6 w-6), `lg` (h-8 w-8). Uses `Loader2` with `animate-spin`.
+`Loader2` + `animate-spin text-muted-foreground`. Sizes: `sm` (h-4 w-4), `md` (h-6 w-6, default), `lg` (h-8 w-8).
+
+### Skeleton
+
+`bg-accent animate-pulse rounded-md` (uses `accent`, not `muted`, as its base tone).
 
 ### Toast (Sonner)
 
-Custom icons per state (success, info, warning, error, loading). Themed via CSS variable overrides.
+Custom icons per state (`CircleCheckIcon`, `InfoIcon`, `TriangleAlertIcon`, `OctagonXIcon`, `Loader2Icon`). Theme follows `next-themes`. CSS variable overrides: `--normal-bg: var(--popover)`, `--normal-text: var(--popover-foreground)`, `--normal-border: var(--border)`, `--border-radius: var(--radius)`.
 
 ---
 
-## Focus & Interaction States
+## Accessibility & Motion
 
-### Focus Ring (Global)
-
-```css
-outline-2 outline-offset-2 outline-ring/70
-```
-
-Component-level override:
-```
-focus-visible:ring-ring/50 focus-visible:ring-[3px]
-```
-
-### Disabled
-
-```
-disabled:pointer-events-none disabled:opacity-50
-```
-
-### Interactive Card Hover
-
-```
-transition-all duration-200 ease-out
-hover:shadow-md hover:-translate-y-0.5
-```
+- **Reduced motion guard (global, `globals.css` `@layer base`):**
+  ```css
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+  ```
+  This is global and automatic — no per-component opt-in needed.
+- **Focus ring (global):** `:focus-visible { @apply outline-ring outline-2 outline-offset-2; }`. Interactive primitives (Input, Button, etc.) additionally use `focus-visible:ring-ring/50 focus-visible:ring-[3px]`.
+- **Selection color:** `::selection` tinted with `color-mix(in oklch, var(--primary) 22%, transparent)`.
+- **One `h1` per page:** every page (`page.tsx`, `login/page.tsx`, `not-found.tsx`, `error.tsx`, `meeting-list.tsx`, `meeting-detail.tsx`, `new-meeting.tsx`) renders exactly one `<h1>`; section headings within a page use `<h2>`.
+- **Skip link:** `SiteHeader` renders a `sr-only focus:not-sr-only` "Skip to content" link targeting `#main-content`.
+- **Status is never color-only:** badges pair color with an icon (pulsing dot for recording, spinner for processing) and a text label; error alerts always carry a `TriangleAlert` icon and text alongside the destructive tint; `role="alert"`/`role="status"`/`aria-live`/`aria-busy` are used throughout loading and error states.
 
 ---
 
 ## Dark Mode
 
-- **Method:** Class-based via `next-themes` with `attribute="class"` and `disableTransitionOnChange`
-- **Default:** System preference
-- **Toggle:** 3-way dropdown — Light / Dark / System
-- All semantic color tokens swap automatically via `.dark` CSS selector
-- Use `dark:` prefix for component-specific overrides (e.g., `dark:bg-input/30`)
-
----
-
-## Branding
-
-### Logo Text
-
-```
-bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent
-```
-
-### Logo Icon Container
-
-```
-w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center
-```
-
-Hero variant: `w-12 h-12 rounded-xl`
+- **Method:** Class-based via `next-themes`, `attribute="class"`, `defaultTheme="system"`, `enableSystem`, `disableTransitionOnChange`.
+- **Toggle:** `ModeToggle` in the header (3-way: Light / Dark / System).
+- All semantic tokens swap under the `.dark` selector in `globals.css` — the same warm hue family, shifted darker/desaturated ("the same paper, lit by lamplight rather than daylight," per the file's own comment).
+- **Rule:** components must consume semantic tokens (`bg-background`, `text-foreground`, `bg-primary`, etc.) only. No hard-coded hex/gray values, except the documented Google-mark exception above.

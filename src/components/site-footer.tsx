@@ -1,8 +1,19 @@
 export function SiteFooter() {
   return (
-    <footer className="text-muted-foreground mx-auto flex w-full max-w-6xl flex-wrap justify-between gap-2 px-4 py-6 text-xs sm:px-6">
-      <span>Breeze — A little less to remember.</span>
-      <span>Your meetings, in one place.</span>
+    <footer>
+      <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
+        <div className="rule-fade h-px" />
+        <div className="text-muted-foreground flex flex-col gap-1.5 py-8 text-xs sm:flex-row sm:items-baseline sm:justify-between">
+          <p>
+            <span className="font-display text-foreground text-sm">breeze</span>
+            <span className="mx-2" aria-hidden="true">
+              ·
+            </span>
+            A little less to remember.
+          </p>
+          <p>Your meetings, in one place.</p>
+        </div>
+      </div>
     </footer>
   );
 }
