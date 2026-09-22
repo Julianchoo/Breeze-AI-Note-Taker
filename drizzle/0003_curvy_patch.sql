@@ -1,0 +1,1 @@
+ALTER TABLE "meetings" ADD COLUMN "cost_usd" double precision;

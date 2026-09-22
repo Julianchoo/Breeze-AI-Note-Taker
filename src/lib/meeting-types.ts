@@ -7,6 +7,7 @@ export type Meeting = {
   createdAt: string; updatedAt: string; durationSeconds: number;
   expectedChunks: number | null; error: string | null;
   summary: string | null; detectedLanguage: string | null;
+  costUsd: number | null;
 };
 export type MeetingChunk = {
   index: number; durationSeconds: number; status: "pending" | "ready";

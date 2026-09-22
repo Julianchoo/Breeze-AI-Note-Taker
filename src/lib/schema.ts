@@ -90,6 +90,7 @@ export const meetings = pgTable("meetings", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   durationSeconds: doublePrecision("duration_seconds").default(0).notNull(),
+  costUsd: doublePrecision("cost_usd"),   // OpenAI spend at list price; NULL = never recorded
   expectedChunks: integer("expected_chunks"),
   summary: text("summary"),
   detectedLanguage: text("detected_language"),
