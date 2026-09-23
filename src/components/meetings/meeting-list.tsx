@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Meeting, MeetingStatus } from "@/lib/meeting-types";
+import { usd } from "./meeting-detail";
 
 /** One readable label + tone per status, so the row scans at a glance. */
 const STATUS: Record<MeetingStatus, { label: string; variant: BadgeProps["variant"] }> = {
@@ -80,6 +81,11 @@ export function MeetingList() {
               {query
                 ? `${filtered?.length ?? 0} of ${meetings.length} meetings`
                 : `${meetings.length} ${meetings.length === 1 ? "meeting" : "meetings"}`}
+              {" · "}
+              {Math.round(
+                meetings.filter((m) => m.status === "ready").reduce((n, m) => n + m.durationSeconds, 0) / 60
+              )}{" "}
+              min processed · {usd(meetings.reduce((n, m) => n + (m.costUsd ?? 0), 0))} AI cost
             </p>
           )}
         </div>

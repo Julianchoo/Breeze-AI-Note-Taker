@@ -50,7 +50,7 @@ function timestamp(seconds: number) {
   const value = Math.max(0, Math.floor(seconds));
   return `${Math.floor(value / 60)}:${String(value % 60).padStart(2, "0")}`;
 }
-function usd(value: number) {
+export function usd(value: number) {
   return value.toLocaleString(undefined, {
     style: "currency",
     currency: "USD",
