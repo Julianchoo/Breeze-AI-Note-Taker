@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Meeting, MeetingStatus } from "@/lib/meeting-types";
-import { usd } from "./meeting-detail";
+import { usd } from "@/lib/utils";
 
 /** One readable label + tone per status, so the row scans at a glance. */
 const STATUS: Record<MeetingStatus, { label: string; variant: BadgeProps["variant"] }> = {

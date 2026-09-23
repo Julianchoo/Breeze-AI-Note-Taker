@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LogOut, NotebookPen } from "lucide-react";
+import { LogOut, NotebookPen, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSession, signOut } from "@/lib/auth-client";
+import { ADMIN_EMAIL } from "@/lib/utils";
 export function UserProfile() {
   const { data: session, isPending } = useSession();
   const router = useRouter();
@@ -78,6 +79,15 @@ export function UserProfile() {
               My meetings
             </Link>
           </DropdownMenuItem>
+          {/* Visibility only — /admin re-checks the session on the server. */}
+          {session.user.email === ADMIN_EMAIL && (
+            <DropdownMenuItem asChild className="rounded-lg px-2 py-2">
+              <Link href="/admin">
+                <ShieldCheck />
+                Admin
+              </Link>
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem onClick={leave} className="rounded-lg px-2 py-2">
             <LogOut />
             Sign out

@@ -29,6 +29,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CHUNK_SECONDS, type MeetingDetail } from "@/lib/meeting-types";
+import { usd } from "@/lib/utils";
 
 /* Reading typography for the AI summary — the most editorial surface of the product. */
 const PROSE =
@@ -49,14 +50,6 @@ const PROSE =
 function timestamp(seconds: number) {
   const value = Math.max(0, Math.floor(seconds));
   return `${Math.floor(value / 60)}:${String(value % 60).padStart(2, "0")}`;
-}
-export function usd(value: number) {
-  return value.toLocaleString(undefined, {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: value < 0.01 ? 4 : 2,
-  });
 }
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, options);
