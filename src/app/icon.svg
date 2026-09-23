@@ -1,0 +1,9 @@
+<!-- Header logo mark (Lucide "Wind") on a terracotta chip. Fixed hex: favicons can't read theme tokens (primary = oklch(0.552 0.128 38)). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="8" fill="#af5336"/>
+  <g transform="translate(4 4)" fill="none" stroke="#fcfaf6" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12.8 19.6A2 2 0 1 0 14 16H2"/>
+    <path d="M17.5 8a2.5 2.5 0 1 1 2 4H2"/>
+    <path d="M9.8 4.4A2 2 0 1 1 11 8H2"/>
+  </g>
+</svg>
