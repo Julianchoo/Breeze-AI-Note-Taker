@@ -1,10 +1,20 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Download, Mic, Monitor, ShieldCheck, Square, UploadCloud } from "lucide-react";
+import {
+  Download,
+  Mic,
+  Monitor,
+  RotateCcw,
+  ShieldCheck,
+  Square,
+  TriangleAlert,
+  UploadCloud,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { captureAudio } from "@/lib/audio-recorder";
+import { decodeAudioFile, sliceChunks } from "@/lib/audio-file";
+import { AUDIO_SAMPLE_RATE, captureAudio, encodeWav } from "@/lib/audio-recorder";
 import {
   cacheChunk,
   deleteChunk,
@@ -51,6 +61,12 @@ export function MeetingRecorder({
   const startedAt = useRef(0);
   const mounted = useRef(true);
   const acquired = useRef<MediaStream[]>([]);
+  const [filePhase, setFilePhase] = useState<"idle" | "decoding" | "uploading">("idle");
+  const [fileProgress, setFileProgress] = useState({ done: 0, total: 0 });
+  const [fileError, setFileError] = useState("");
+  const [dragging, setDragging] = useState(false);
+  // Kept after a failed upload so Retry resumes the same meeting instead of creating another.
+  const [fileJob, setFileJob] = useState<{ id: string; chunks: Int16Array[] } | null>(null);
 
   useEffect(() => {
     mounted.current = true;
@@ -253,6 +269,80 @@ export function MeetingRecorder({
     }
   }
 
+  async function sendFile(job: { id: string; chunks: Int16Array[] }) {
+    setFileError("");
+    setFilePhase("uploading");
+    try {
+      for (let index = 0; index < job.chunks.length; index++) {
+        setFileProgress({ done: index, total: job.chunks.length });
+        // The chunk endpoint is idempotent for identical audio, so retrying is safe.
+        for (let attempt = 1; ; attempt++) {
+          try {
+            const receipt = await checked(
+              await fetch(`/api/meetings/${job.id}/chunks`, {
+                method: "POST",
+                headers: { "Content-Type": "audio/wav", "X-Chunk-Index": String(index) },
+                body: encodeWav(job.chunks[index]!),
+                signal: AbortSignal.timeout(60000),
+              })
+            );
+            if (receipt?.index !== index) throw new Error("Audio upload was not confirmed.");
+            break;
+          } catch (cause) {
+            if (attempt >= 3) throw cause;
+            await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
+          }
+        }
+      }
+      setFileProgress({ done: job.chunks.length, total: job.chunks.length });
+      await checked(
+        await fetch(`/api/meetings/${job.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "finish",
+            expectedChunks: job.chunks.length,
+            durationSeconds:
+              job.chunks.reduce((sum, chunk) => sum + chunk.length, 0) / AUDIO_SAMPLE_RATE,
+          }),
+        })
+      );
+      setFileJob(null);
+      if (mounted.current) onFinished(job.id);
+    } catch (cause) {
+      setFileError(cause instanceof Error ? cause.message : "Could not upload the file.");
+      setFilePhase("idle");
+    }
+  }
+
+  async function uploadFile(file: File) {
+    setFileJob(null);
+    setFileError("");
+    setFilePhase("decoding");
+    let job: { id: string; chunks: Int16Array[] };
+    try {
+      const chunks = sliceChunks(await decodeAudioFile(file));
+      // No typed title → the "Untitled meeting" sentinel, which gets an AI-generated title after processing.
+      const name = title.trim() || "Untitled meeting";
+      const result = await checked(
+        await fetch("/api/meetings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: name }),
+        })
+      );
+      if (typeof result?.meeting?.id !== "string")
+        throw new Error("The meeting could not be created.");
+      job = { id: result.meeting.id, chunks };
+      setFileJob(job);
+    } catch (cause) {
+      setFileError(cause instanceof Error ? cause.message : "Could not read the file.");
+      setFilePhase("idle");
+      return;
+    }
+    await sendFile(job);
+  }
+
   function download(blob: Blob, index: number) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -262,10 +352,11 @@ export function MeetingRecorder({
     setTimeout(() => URL.revokeObjectURL(url), 10000);
   }
 
-  const busy = phase !== "idle";
+  const fileBusy = filePhase !== "idle";
+  const busy = phase !== "idle" || fileBusy;
   return (
     <div className="space-y-6">
-      {recoveries.length > 0 && phase === "idle" ? (
+      {recoveries.length > 0 && !busy ? (
         <section className="bg-card animate-fade-up rounded-2xl border p-5 sm:p-6">
           <p className="eyebrow">Unfinished</p>
           <h2 className="font-display mt-1.5 text-2xl">Pick up where you left off</h2>
@@ -429,7 +520,7 @@ export function MeetingRecorder({
             <Button
               size="lg"
               className="w-full"
-              disabled={phase === "starting"}
+              disabled={phase === "starting" || fileBusy}
               onClick={() => void start()}
             >
               <Mic />
@@ -505,6 +596,89 @@ export function MeetingRecorder({
           </p>
         </div>
       </div>
+
+      <section className="bg-card animate-fade-up rounded-2xl border p-5 shadow-sm [animation-delay:120ms] sm:p-8">
+        <p className="eyebrow">Already recorded?</p>
+        <h2 className="font-display mt-1.5 text-2xl">Upload a file</h2>
+        <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
+          Audio or video, up to 4 hours. Uses the meeting name above, or the file name.
+        </p>
+        <label
+          onDragOver={(event) => {
+            event.preventDefault();
+            if (!busy) setDragging(true);
+          }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(event) => {
+            event.preventDefault();
+            setDragging(false);
+            const file = event.dataTransfer.files[0];
+            if (file && !busy) void uploadFile(file);
+          }}
+          className={`focus-within:ring-ring/50 mt-5 flex cursor-pointer flex-col items-center gap-3 rounded-2xl border border-dashed px-6 py-10 text-center transition-colors focus-within:ring-[3px] has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60 ${
+            dragging ? "border-primary bg-primary/5" : "border-border/70 hover:bg-accent/40"
+          }`}
+        >
+          <input
+            type="file"
+            accept="audio/*,video/*"
+            disabled={busy}
+            className="sr-only"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (file) void uploadFile(file);
+            }}
+          />
+          <span className="bg-muted flex size-14 items-center justify-center rounded-full">
+            <UploadCloud className="text-muted-foreground size-6" />
+          </span>
+          <span className="text-sm font-medium">
+            {filePhase === "decoding"
+              ? "Decoding…"
+              : filePhase === "uploading"
+                ? `Uploading part ${Math.min(fileProgress.done + 1, fileProgress.total)} of ${fileProgress.total}`
+                : "Choose a file or drop it here"}
+          </span>
+          <span className="text-muted-foreground text-xs">MP3, M4A, WAV, OGG, WebM, MP4, MOV</span>
+        </label>
+
+        {filePhase === "uploading" ? (
+          <div
+            role="progressbar"
+            aria-label="Upload progress"
+            aria-valuemin={0}
+            aria-valuemax={fileProgress.total}
+            aria-valuenow={fileProgress.done}
+            className="bg-muted mt-4 h-1.5 overflow-hidden rounded-full"
+          >
+            <div
+              className="bg-primary h-full rounded-full transition-[width] duration-300"
+              style={{ width: `${(fileProgress.done / fileProgress.total) * 100}%` }}
+            />
+          </div>
+        ) : null}
+
+        {fileError ? (
+          <div
+            role="alert"
+            className="text-destructive border-destructive/25 bg-destructive/5 mt-4 flex items-start gap-2.5 rounded-xl border px-4 py-3 text-sm leading-relaxed"
+          >
+            <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+            <span className="min-w-0 flex-1">{fileError}</span>
+          </div>
+        ) : null}
+        {fileError && fileJob && !busy ? (
+          <Button
+            variant="secondary"
+            className="mt-4 w-full"
+            onClick={() => void sendFile(fileJob)}
+          >
+            <RotateCcw />
+            Retry upload
+          </Button>
+        ) : null}
+      </section>
     </div>
   );
 }

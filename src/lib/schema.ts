@@ -101,6 +101,9 @@ export const meetings = pgTable("meetings", {
   leaseToken: uuid("lease_token"),
   leaseUntil: timestamp("lease_until"),
   failures: integer("failures").default(0).notNull(),
+  speakerNames: jsonb("speaker_names").$type<Record<string, string>>().default({}).notNull(),
+  speakerSuggestions: jsonb("speaker_suggestions").$type<Record<string, string>>().default({}).notNull(),
+  aiContext: text("ai_context"),
   speakerReferences: jsonb("speaker_references").$type<{ name: string; data: string }[]>().default([]).notNull(),
 }, (table) => [index("meetings_user_created_idx").on(table.userId, table.createdAt)]);
 

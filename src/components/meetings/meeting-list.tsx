@@ -6,16 +6,31 @@ import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { Meeting, MeetingStatus } from "@/lib/meeting-types";
+import type { Meeting, MeetingStatus, SearchResult } from "@/lib/meeting-types";
+import { findMatch } from "@/lib/search-text";
 import { usd } from "@/lib/utils";
 
 /** One readable label + tone per status, so the row scans at a glance. */
 const STATUS: Record<MeetingStatus, { label: string; variant: BadgeProps["variant"] }> = {
   ready: { label: "Ready", variant: "success" },
+  review: { label: "Ready to process", variant: "outline" },
   processing: { label: "Preparing", variant: "secondary" },
   recording: { label: "Recording", variant: "destructive" },
   error: { label: "Needs attention", variant: "destructive" },
 };
+
+/** Marks the first accent-insensitive match of `query` in `text`. */
+function Highlight({ text, query }: { text: string; query: string }) {
+  const match = findMatch(text, query);
+  if (!match) return text;
+  return (
+    <>
+      {text.slice(0, match[0])}
+      <mark className="bg-primary/15 text-foreground rounded-sm px-0.5">{text.slice(...match)}</mark>
+      {text.slice(match[1])}
+    </>
+  );
+}
 
 export function MeetingList() {
   const [meetings, setMeetings] = useState<Meeting[] | null>(null);
@@ -36,7 +51,33 @@ export function MeetingList() {
       });
     return () => controller.abort();
   }, [attempt]);
-  const filtered = meetings?.filter((meeting) =>
+  // 2+ chars: search titles, summaries and transcripts on the server instead of filtering the list.
+  const term = query.trim();
+  const searching = term.length >= 2;
+  const [search, setSearch] = useState<{ term: string; results: SearchResult[]; error: string }>({ term: "", results: [], error: "" });
+  const [searchAttempt, setSearchAttempt] = useState(0);
+  useEffect(() => {
+    if (term.length < 2) return;
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      fetch(`/api/meetings/search?q=${encodeURIComponent(term)}`, { signal: controller.signal })
+        .then(async (response) => {
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || "Search failed.");
+          setSearch({ term, results: data.results, error: "" });
+        })
+        .catch((error) => {
+          if (!controller.signal.aborted) setSearch({ term, results: [], error: error.message || "Search failed." });
+        });
+    }, 250);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [term, searchAttempt]);
+  const searchLoading = searching && search.term !== term;
+  const shownError = error || (searching && !searchLoading ? search.error : "");
+  const filtered: (Meeting | SearchResult)[] | undefined = searching ? search.results : meetings?.filter((meeting) =>
     `${meeting.title} ${new Date(meeting.createdAt).toLocaleDateString()} ${meeting.status}`
       .toLowerCase()
       .includes(query.toLowerCase())
@@ -69,7 +110,7 @@ export function MeetingList() {
               aria-hidden="true"
             />
             <Input
-              aria-label="Search meetings by title, date, or status"
+              aria-label="Search meetings by title, summary, or transcript"
               placeholder="Search meetings"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
@@ -78,7 +119,11 @@ export function MeetingList() {
           </div>
           {meetings && (
             <p className="text-muted-foreground font-mono text-xs tabular-nums" aria-live="polite">
-              {query
+              {searchLoading
+                ? "Searching…"
+                : searching
+                ? `${filtered?.length ?? 0} ${filtered?.length === 1 ? "result" : "results"}`
+                : query
                 ? `${filtered?.length ?? 0} of ${meetings.length} meetings`
                 : `${meetings.length} ${meetings.length === 1 ? "meeting" : "meetings"}`}
               {" · "}
@@ -90,24 +135,33 @@ export function MeetingList() {
           )}
         </div>
 
-        {error ? (
+        {shownError ? (
           <div
             role="alert"
             className="animate-fade-in border-destructive/25 bg-destructive/5 mt-8 flex flex-col items-start gap-4 rounded-xl border p-6 sm:p-8"
           >
             <TriangleAlert className="text-destructive size-5" aria-hidden="true" />
             <div className="flex flex-col gap-2">
-              <h2 className="font-display text-2xl">We could not load your meetings</h2>
-              <p className="text-muted-foreground max-w-md text-sm leading-6">{error}</p>
+              <h2 className="font-display text-2xl">
+                {error ? "We could not load your meetings" : "We could not search your meetings"}
+              </h2>
+              <p className="text-muted-foreground max-w-md text-sm leading-6">{shownError}</p>
             </div>
-            <Button variant="outline" onClick={() => setAttempt((n) => n + 1)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (error) return setAttempt((n) => n + 1);
+                setSearch((s) => ({ ...s, term: "" }));
+                setSearchAttempt((n) => n + 1);
+              }}
+            >
               Try again
             </Button>
           </div>
-        ) : !meetings ? (
+        ) : !meetings || searchLoading ? (
           <div
             role="status"
-            aria-label="Loading meetings"
+            aria-label={searchLoading ? "Searching meetings" : "Loading meetings"}
             aria-busy="true"
             className="border-border/70 mt-8 divide-y border-y"
           >
@@ -140,7 +194,9 @@ export function MeetingList() {
                       />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <h2 className="group-hover:text-primary truncate font-medium transition-colors">
+                      <h2
+                        className={`group-hover:text-primary truncate transition-colors ${searching ? "font-semibold" : "font-medium"}`}
+                      >
                         {meeting.title}
                       </h2>
                       <p className="text-muted-foreground mt-1.5 truncate font-mono text-xs tabular-nums">
@@ -148,9 +204,14 @@ export function MeetingList() {
                           month: "short",
                           day: "numeric",
                           year: "numeric",
-                        })}{" "}
-                        · {Math.ceil(meeting.durationSeconds / 60)} min
+                        })}
+                        {"durationSeconds" in meeting && ` · ${Math.ceil(meeting.durationSeconds / 60)} min`}
                       </p>
+                      {"excerpt" in meeting && meeting.excerpt && (
+                        <p className="text-muted-foreground mt-1.5 line-clamp-2 text-sm leading-6">
+                          <Highlight text={meeting.excerpt} query={search.term} />
+                        </p>
+                      )}
                     </div>
                     <Badge variant={status.variant} className="shrink-0">
                       {meeting.status === "recording" && (
@@ -185,7 +246,9 @@ export function MeetingList() {
               </h2>
               <p className="text-muted-foreground mx-auto max-w-sm text-sm leading-6">
                 {query
-                  ? "No meeting matches this search. Try another title, date, or status."
+                  ? searching
+                    ? "No title, summary, or transcript mentions this. Try another word."
+                    : "No meeting matches this search. Try another title, date, or status."
                   : "Record your first meeting and it will be waiting here — summary, transcript, and audio, all in one place."}
               </p>
             </div>

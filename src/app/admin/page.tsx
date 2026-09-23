@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { count, desc, eq, max, sql } from "drizzle-orm";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -14,6 +15,9 @@ export const metadata = { title: "Admin" };
 
 const date = (value: Date | null) =>
   value ? value.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
+
+const monthLabel = (value: string) =>
+  new Date(value).toLocaleDateString("en-US", { month: "short", year: "numeric" });
 
 async function requireAdmin() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -53,6 +57,20 @@ export default async function AdminPage() {
     (t, r) => ({ meetings: t.meetings + r.meetings, seconds: t.seconds + r.seconds, cost: t.cost + r.cost }),
     { meetings: 0, seconds: 0, cost: 0 }
   );
+  const atLimit = rows.filter((r) => r.cost >= r.limit).length;
+
+  // Monthly spend across all users, from existing meetings only: cost of deleted meetings (or users) is missing here,
+  // unlike the lifetime total above.
+  const monthly = await db
+    .select({
+      month: sql<string>`date_trunc('month', ${meetings.createdAt})`,
+      meetings: count(meetings.id),
+      seconds: sql<number>`coalesce(sum(${meetings.durationSeconds}) filter (where ${meetings.status} = 'ready'), 0)`.mapWith(Number),
+      cost: sql<number>`coalesce(sum(${meetings.costUsd}), 0)`.mapWith(Number),
+    })
+    .from(meetings)
+    .groupBy(sql`date_trunc('month', ${meetings.createdAt})`)
+    .orderBy(sql`date_trunc('month', ${meetings.createdAt}) desc`);
 
   return (
     <div className="glow-bg">
@@ -60,11 +78,27 @@ export default async function AdminPage() {
         <header className="animate-fade-up flex flex-col gap-3">
           <p className="eyebrow">Admin</p>
           <h1 className="font-display text-4xl leading-[1.05] sm:text-5xl">Users &amp; usage</h1>
-          <p className="text-muted-foreground font-mono text-xs tabular-nums sm:text-sm">
-            {rows.length} users · {totals.meetings} meetings · {Math.round(totals.seconds / 60)} min processed ·{" "}
-            {usd(totals.cost)} AI cost
-          </p>
         </header>
+
+        <div className="animate-fade-up mt-8 grid grid-cols-2 gap-4 sm:grid-cols-4 [animation-delay:80ms]">
+          <Card className="rounded-2xl p-5">
+            <p className="eyebrow">Total AI spend</p>
+            <p className="mt-2 font-mono text-2xl tabular-nums">{usd(totals.cost)}</p>
+          </Card>
+          <Card className="rounded-2xl p-5">
+            <p className="eyebrow">Minutes processed</p>
+            <p className="mt-2 font-mono text-2xl tabular-nums">{Math.round(totals.seconds / 60)}</p>
+          </Card>
+          <Card className="rounded-2xl p-5">
+            <p className="eyebrow">Meetings</p>
+            <p className="mt-2 font-mono text-2xl tabular-nums">{totals.meetings}</p>
+          </Card>
+          <Card className="rounded-2xl p-5">
+            <p className="eyebrow">Users</p>
+            <p className="mt-2 font-mono text-2xl tabular-nums">{rows.length}</p>
+            <p className="text-muted-foreground mt-1 text-xs">{atLimit} at limit</p>
+          </Card>
+        </div>
 
         <div className="rule-fade mt-10 h-px sm:mt-14" />
 
@@ -122,6 +156,38 @@ export default async function AdminPage() {
             </tbody>
           </table>
         </div>
+
+        <section className="animate-fade-up mt-14 flex flex-col gap-3" aria-labelledby="monthly-heading">
+          <h2 id="monthly-heading" className="font-display text-2xl">
+            Spend by month
+          </h2>
+          <p className="text-muted-foreground text-xs">
+            Monthly figures come from existing meetings, so spend from deleted meetings only appears in the lifetime
+            total above.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[32rem] text-sm">
+              <thead>
+                <tr className="text-muted-foreground border-border/70 border-b text-left text-xs">
+                  <th className="py-3 pr-4 font-medium">Month</th>
+                  <th className="py-3 pr-4 text-right font-medium">Meetings</th>
+                  <th className="py-3 pr-4 text-right font-medium">Minutes</th>
+                  <th className="py-3 text-right font-medium">AI cost</th>
+                </tr>
+              </thead>
+              <tbody className="divide-border/70 divide-y">
+                {monthly.map((m) => (
+                  <tr key={m.month}>
+                    <td className="py-4 pr-4 font-mono text-xs tabular-nums">{monthLabel(m.month)}</td>
+                    <td className="py-4 pr-4 text-right font-mono tabular-nums">{m.meetings}</td>
+                    <td className="py-4 pr-4 text-right font-mono tabular-nums">{Math.round(m.seconds / 60)}</td>
+                    <td className="py-4 text-right font-mono tabular-nums">{usd(m.cost)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
     </div>
   );

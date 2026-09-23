@@ -19,8 +19,8 @@ export function NewMeeting({ userId }: { userId: string }) {
           <p className="eyebrow">New recording</p>
           <h1 className="font-display mt-2 text-4xl sm:text-5xl">Ready when you are</h1>
           <p className="text-muted-foreground mt-3 text-base leading-relaxed">
-            Name the meeting, pick what Breeze should listen to, then press record. Notes are
-            written for you the moment you stop.
+            Name the meeting, pick what Breeze should listen to, then press record — or upload a
+            recording you already have. Notes are written for you the moment you stop.
           </p>
         </header>
         <MeetingRecorder userId={userId} onFinished={(id) => router.push(`/meetings/${id}`)} />

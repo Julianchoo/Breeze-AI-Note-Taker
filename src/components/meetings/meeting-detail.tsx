@@ -28,7 +28,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CHUNK_SECONDS, type MeetingDetail } from "@/lib/meeting-types";
+import { Textarea } from "@/components/ui/textarea";
+import { CHUNK_SECONDS, type Meeting, type MeetingDetail } from "@/lib/meeting-types";
 import { usd } from "@/lib/utils";
 
 /* Reading typography for the AI summary — the most editorial surface of the product. */
@@ -51,6 +52,24 @@ function timestamp(seconds: number) {
   const value = Math.max(0, Math.floor(seconds));
   return `${Math.floor(value / 60)}:${String(value % 60).padStart(2, "0")}`;
 }
+/* Replaces whole speaker labels with their display names in one pass. Longest-first alternation keeps
+   "Part 2 · Speaker 1" whole; the letter/digit guards stop "Speaker 1" matching inside "Speaker 10". */
+export function relabel(text: string, labels: string[], names: Record<string, string>) {
+  if (!labels.length || !Object.keys(names).length) return text;
+  names = { ...names };
+  // The summary model tends to shorten "Part 1 · Speaker 1" to "Speaker 1"; accept that short form when unambiguous.
+  const short = labels.map((label) => /^Part \d+ · (.+)$/.exec(label)?.[1]);
+  short.forEach((alias, i) => {
+    const label = labels[i]!;
+    if (alias && Object.hasOwn(names, label) && !labels.includes(alias) && short.filter((s) => s === alias).length === 1)
+      names[alias] = names[label]!;
+  });
+  const alternatives = [...labels, ...Object.keys(names).filter((key) => !labels.includes(key))]
+    .sort((a, b) => b.length - a.length)
+    .map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const pattern = new RegExp(`(?<![\\p{L}\\p{N}])(?:${alternatives.join("|")})(?![\\p{L}\\p{N}])`, "gu");
+  return text.replace(pattern, (label) => (Object.hasOwn(names, label) ? names[label]! : label));
+}
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, options);
   const data = await response.json();
@@ -70,6 +89,10 @@ export function MeetingDetailView({ id }: { id: string }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [audioIndex, setAudioIndex] = useState(0);
   const [audioError, setAudioError] = useState("");
+  const [aiContext, setAiContext] = useState("");
+  const [speaker, setSpeaker] = useState<string | null>(null);
+  const [speakerName, setSpeakerName] = useState("");
+  const [speakerSaving, setSpeakerSaving] = useState(false);
   const audio = useRef<HTMLAudioElement>(null);
   const pendingSeek = useRef<number | null>(null);
   const playNext = useRef(false);
@@ -134,6 +157,42 @@ export function MeetingDetailView({ id }: { id: string }) {
       toast.error(error instanceof Error ? error.message : "Could not save title.");
     } finally {
       setSaving(false);
+    }
+  }
+  async function startProcessing() {
+    setSaving(true);
+    try {
+      await request(endpoint, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "process", aiContext }),
+      });
+      /* Reloading sees status "processing" and runs the usual processing loop. */
+      setRetry((value) => value + 1);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not start processing.");
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function saveSpeaker(label: string, name: string) {
+    setSpeakerSaving(true);
+    try {
+      const { meeting } = await request<{ meeting: Meeting }>(endpoint, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ speakerNames: { [label]: name.trim() } }),
+      });
+      setDetail((current) =>
+        current
+          ? { ...current, meeting: { ...current.meeting, speakerNames: meeting.speakerNames } }
+          : current
+      );
+      setSpeaker(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not rename speaker.");
+    } finally {
+      setSpeakerSaving(false);
     }
   }
   async function remove() {
@@ -232,6 +291,7 @@ export function MeetingDetailView({ id }: { id: string }) {
   /* The summary counts as the final step, so the bar never sits at 100% while it is still writing. */
   const totalSteps = chunks.length + 1;
   const percent = Math.round((completed / totalSteps) * 100);
+  const labels = [...new Set(segments.map((segment) => segment.speaker))];
   const separator = (
     <span aria-hidden="true" className="text-border">
       ·
@@ -312,7 +372,9 @@ export function MeetingDetailView({ id }: { id: string }) {
                   ? "Preparing your notes"
                   : meeting.status === "recording"
                     ? "Recording not finalized"
-                    : "Needs attention"}
+                    : meeting.status === "review"
+                      ? "Ready to process"
+                      : "Needs attention"}
             </Badge>
             <p className="text-muted-foreground flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs">
               <time dateTime={meeting.createdAt} className="font-mono tabular-nums">
@@ -462,6 +524,58 @@ export function MeetingDetailView({ id }: { id: string }) {
           </section>
         )}
 
+        {meeting.status === "review" && (
+          <section
+            aria-labelledby="review-heading"
+            className="border-border bg-card animate-fade-up mb-10 rounded-2xl border p-6 sm:p-7"
+          >
+            <p className="eyebrow mb-2">Before processing</p>
+            <h2 id="review-heading" className="font-display text-2xl">
+              Anything the AI should know?
+            </h2>
+            <p className="text-muted-foreground mt-3 max-w-prose text-sm leading-6">
+              Your recording is saved. Optionally tell the AI what to focus on, who was there, or
+              which questions the summary should answer. It only uses what was actually said.
+            </p>
+            <form
+              className="mt-5 flex flex-col gap-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void startProcessing();
+              }}
+            >
+              <label htmlFor="ai-context" className="text-sm font-medium">
+                Notes for the AI — focus, context, questions to answer{" "}
+                <span className="text-muted-foreground font-normal">(optional)</span>
+              </label>
+              <Textarea
+                id="ai-context"
+                rows={4}
+                maxLength={2000}
+                value={aiContext}
+                onChange={(event) => setAiContext(event.target.value)}
+                aria-describedby="ai-context-count"
+                className="min-h-28 rounded-lg"
+                placeholder={
+                  "e.g. Focus on the budget decisions.\nWho owns the launch checklist?\nAna is the client; Tom leads engineering."
+                }
+              />
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span
+                  id="ai-context-count"
+                  className="text-muted-foreground font-mono text-xs tabular-nums"
+                >
+                  {aiContext.length}/2000
+                </span>
+                <Button type="submit" disabled={saving}>
+                  {saving && <Loader2 className="animate-spin" aria-hidden="true" />}
+                  Process meeting
+                </Button>
+              </div>
+            </form>
+          </section>
+        )}
+
         <section
           className="border-border bg-card animate-fade-up mb-12 rounded-2xl border p-6 sm:p-10"
           aria-labelledby="summary-heading"
@@ -472,7 +586,7 @@ export function MeetingDetailView({ id }: { id: string }) {
           </h2>
           {meeting.summary ? (
             <div className={PROSE}>
-              <ReactMarkdown>{meeting.summary}</ReactMarkdown>
+              <ReactMarkdown>{relabel(meeting.summary, labels, meeting.speakerNames)}</ReactMarkdown>
             </div>
           ) : (
             <p className="text-muted-foreground max-w-prose text-sm leading-6">
@@ -562,6 +676,99 @@ export function MeetingDetailView({ id }: { id: string }) {
           </section>
         )}
 
+        {labels.length > 0 && meeting.status !== "recording" && (
+          <section className="animate-fade-up mb-8 flex flex-col gap-3" aria-labelledby="speakers-heading">
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <h2 id="speakers-heading" className="font-display text-2xl">
+                Speakers
+              </h2>
+              <span className="text-muted-foreground text-xs">
+                Names apply to the summary and transcript.
+              </span>
+            </div>
+            <ul className="border-border/70 divide-y border-y">
+              {labels.map((label, index) => {
+                const name = meeting.speakerNames[label];
+                const suggestion = !name && meeting.speakerSuggestions[label];
+                return (
+                  <li key={label} className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-2 py-2">
+                    {speaker === label ? (
+                      <form
+                        className="animate-scale-in flex min-w-0 flex-1 items-center gap-2"
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          void saveSpeaker(label, speakerName);
+                        }}
+                      >
+                        <label htmlFor={`speaker-${index}`} className="sr-only">
+                          Name for {label}
+                        </label>
+                        <Input
+                          id={`speaker-${index}`}
+                          autoFocus
+                          maxLength={60}
+                          value={speakerName}
+                          onChange={(event) => setSpeakerName(event.target.value)}
+                          placeholder={label}
+                          className="h-9 min-w-0 flex-1"
+                        />
+                        <Button
+                          type="submit"
+                          size="icon"
+                          disabled={speakerSaving}
+                          aria-label={speakerName.trim() ? `Save name for ${label}` : `Clear name for ${label}`}
+                        >
+                          {speakerSaving ? <Loader2 className="animate-spin" /> : <Check />}
+                        </Button>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => setSpeaker(null)}>
+                          Cancel
+                        </Button>
+                      </form>
+                    ) : (
+                      <>
+                        <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2.5">
+                          <span className="truncate text-sm font-medium">{name || label}</span>
+                          {name && (
+                            <span className="text-muted-foreground text-[0.6875rem] tracking-[0.12em] uppercase">
+                              {label}
+                            </span>
+                          )}
+                        </div>
+                        {suggestion && (
+                          <span className="text-muted-foreground flex items-center gap-2 text-xs">
+                            Suggested
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={speakerSaving}
+                              onClick={() => void saveSpeaker(label, suggestion)}
+                              aria-label={`Name ${label} ${suggestion}`}
+                            >
+                              <Check />
+                              {suggestion}
+                            </Button>
+                          </span>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Rename ${label}`}
+                          onClick={() => {
+                            setSpeakerName(name ?? "");
+                            setSpeaker(label);
+                          }}
+                        >
+                          <Pencil />
+                        </Button>
+                      </>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
+
         <section className="animate-fade-up" aria-labelledby="transcript-heading">
           <details className="group">
             <summary className="border-border hover:border-primary/30 flex cursor-pointer list-none items-center justify-between gap-4 rounded-xl border px-4 py-3.5 transition-colors select-none sm:px-5 [&::-webkit-details-marker]:hidden">
@@ -584,7 +791,7 @@ export function MeetingDetailView({ id }: { id: string }) {
             </summary>
             <p className="text-muted-foreground my-6 max-w-prose text-xs leading-5">
               Speaker labels distinguish voices within each audio part. The same person may have a
-              different label in another part; names are not inferred.
+              different label in another part; rename speakers above to show their names.
             </p>
             {segments.length ? (
               <ol className="flex flex-col gap-1 pb-4">
@@ -603,7 +810,7 @@ export function MeetingDetailView({ id }: { id: string }) {
                         {timestamp(segment.start)}
                       </button>
                       <span className="text-foreground/70 truncate text-[0.6875rem] font-medium tracking-[0.12em] uppercase">
-                        {segment.speaker}
+                        {meeting.speakerNames[segment.speaker] || segment.speaker}
                       </span>
                     </div>
                     <p className="max-w-[62ch] text-[0.9375rem] leading-7">{segment.text}</p>

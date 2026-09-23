@@ -36,6 +36,20 @@
       "when": 1790166327504,
       "tag": "0004_windy_leopardon",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790168097700,
+      "tag": "0005_overconfident_inertia",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790168101475,
+      "tag": "0006_unaccent",
+      "breakpoints": true
     }
   ]
 }
