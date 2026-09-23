@@ -7,6 +7,7 @@ import {
   AudioLines,
   Check,
   ChevronDown,
+  Copy,
   Loader2,
   Pencil,
   RotateCcw,
@@ -90,6 +91,8 @@ export function MeetingDetailView({ id }: { id: string }) {
   const [audioIndex, setAudioIndex] = useState(0);
   const [audioError, setAudioError] = useState("");
   const [aiContext, setAiContext] = useState("");
+  const [copied, setCopied] = useState(false);
+  const summaryRef = useRef<HTMLDivElement>(null);
   const [speaker, setSpeaker] = useState<string | null>(null);
   const [speakerName, setSpeakerName] = useState("");
   const [speakerSaving, setSpeakerSaving] = useState(false);
@@ -292,6 +295,33 @@ export function MeetingDetailView({ id }: { id: string }) {
   const totalSteps = chunks.length + 1;
   const percent = Math.round((completed / totalSteps) * 100);
   const labels = [...new Set(segments.map((segment) => segment.speaker))];
+  const summary = meeting.summary && relabel(meeting.summary, labels, meeting.speakerNames);
+  /* Copies as HTML (Notion and Google Docs turn it into real headings/lists) with a Markdown plain-text fallback. */
+  async function copySummary() {
+    if (!summary) return;
+    const date = new Date(meeting.createdAt).toLocaleDateString(undefined, { dateStyle: "long" });
+    const heading = document.createElement("h1");
+    heading.textContent = meeting.title;
+    const html = `${heading.outerHTML}<p>${date}</p>${summaryRef.current?.innerHTML ?? ""}`;
+    const text = `# ${meeting.title}\n\n${date}\n\n${summary}`;
+    try {
+      try {
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            "text/html": new Blob([html], { type: "text/html" }),
+            "text/plain": new Blob([text], { type: "text/plain" }),
+          }),
+        ]);
+      } catch {
+        await navigator.clipboard.writeText(text);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast.success("Summary copied. Paste it into Notion or Google Docs.");
+    } catch {
+      toast.error("Could not copy. Check your browser's clipboard permission.");
+    }
+  }
   const separator = (
     <span aria-hidden="true" className="text-border">
       ·
@@ -580,13 +610,23 @@ export function MeetingDetailView({ id }: { id: string }) {
           className="border-border bg-card animate-fade-up mb-12 rounded-2xl border p-6 sm:p-10"
           aria-labelledby="summary-heading"
         >
-          <p className="eyebrow mb-2">The takeaway</p>
-          <h2 id="summary-heading" className="font-display mb-7 text-3xl">
-            Meeting summary
-          </h2>
-          {meeting.summary ? (
-            <div className={PROSE}>
-              <ReactMarkdown>{relabel(meeting.summary, labels, meeting.speakerNames)}</ReactMarkdown>
+          <div className="mb-7 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="eyebrow mb-2">The takeaway</p>
+              <h2 id="summary-heading" className="font-display text-3xl">
+                Meeting summary
+              </h2>
+            </div>
+            {summary && (
+              <Button variant="outline" size="sm" onClick={copySummary}>
+                {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+                {copied ? "Copied" : "Copy for Notion / Docs"}
+              </Button>
+            )}
+          </div>
+          {summary ? (
+            <div ref={summaryRef} className={PROSE}>
+              <ReactMarkdown>{summary}</ReactMarkdown>
             </div>
           ) : (
             <p className="text-muted-foreground max-w-prose text-sm leading-6">
