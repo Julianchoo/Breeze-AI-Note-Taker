@@ -30,8 +30,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { useSession } from "@/lib/auth-client";
 import { CHUNK_SECONDS, type Meeting, type MeetingDetail } from "@/lib/meeting-types";
-import { usd } from "@/lib/utils";
+import { ADMIN_EMAIL, usd } from "@/lib/utils";
 
 /* Reading typography for the AI summary — the most editorial surface of the product. */
 const PROSE =
@@ -79,6 +80,8 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
 }
 export function MeetingDetailView({ id }: { id: string }) {
   const router = useRouter();
+  // Visibility only — the API re-checks the admin on the server.
+  const isAdmin = useSession().data?.user.email === ADMIN_EMAIL;
   const [detail, setDetail] = useState<MeetingDetail | null>(null);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
@@ -174,6 +177,21 @@ export function MeetingDetailView({ id }: { id: string }) {
       setRetry((value) => value + 1);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not start processing.");
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function resummarize() {
+    setSaving(true);
+    try {
+      await request(endpoint, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "resummarize" }),
+      });
+      setRetry((value) => value + 1);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not regenerate the summary.");
     } finally {
       setSaving(false);
     }
@@ -617,12 +635,20 @@ export function MeetingDetailView({ id }: { id: string }) {
                 Meeting summary
               </h2>
             </div>
-            {summary && (
-              <Button variant="outline" size="sm" onClick={copySummary}>
-                {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
-                {copied ? "Copied" : "Copy for Notion / Docs"}
-              </Button>
-            )}
+            <div className="flex flex-wrap gap-2">
+              {isAdmin && meeting.status === "ready" && (
+                <Button variant="outline" size="sm" onClick={resummarize} disabled={saving || processing}>
+                  {saving ? <Loader2 className="animate-spin" aria-hidden="true" /> : <RotateCcw aria-hidden="true" />}
+                  Regenerate summary
+                </Button>
+              )}
+              {summary && (
+                <Button variant="outline" size="sm" onClick={copySummary}>
+                  {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+                  {copied ? "Copied" : "Copy for Notion / Docs"}
+                </Button>
+              )}
+            </div>
           </div>
           {summary ? (
             <div ref={summaryRef} className={PROSE}>
