@@ -12,6 +12,9 @@ export const user = pgTable(
     email: text("email").notNull().unique(),
     emailVerified: boolean("email_verified").default(false).notNull(),
     image: text("image"),
+    // Lifetime OpenAI spend; kept here (not summed from meetings) so deleting meetings can't reset it.
+    spentUsd: doublePrecision("spent_usd").default(0).notNull(),
+    costLimitUsd: doublePrecision("cost_limit_usd").default(0.5).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()

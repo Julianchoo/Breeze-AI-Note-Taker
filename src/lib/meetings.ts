@@ -7,7 +7,7 @@ import { db } from "./db";
 import { CHUNK_SECONDS, type Meeting, type MeetingDetail, type TranscriptSegment } from "./meeting-types";
 import { MeetingError, MAX_WAV_BYTES, chunkIndex, requireSameOrigin, validateChunkSequence, wavDuration } from "./meeting-validation";
 import { callCostUsd } from "./openai-pricing";
-import { meetingChunks, meetings } from "./schema";
+import { meetingChunks, meetings, user } from "./schema";
 
 type Row = Pick<typeof meetings.$inferSelect, keyof Meeting>;
 function visible(row: Row): Meeting {
@@ -38,7 +38,13 @@ async function owned(id: string, userId: string) {
 export async function listMeetings(userId: string) {
   return (await db.select({ id: meetings.id, title: meetings.title, status: meetings.status, createdAt: meetings.createdAt, updatedAt: meetings.updatedAt, durationSeconds: meetings.durationSeconds, expectedChunks: meetings.expectedChunks, error: meetings.error, summary: meetings.summary, detectedLanguage: meetings.detectedLanguage, costUsd: meetings.costUsd }).from(meetings).where(eq(meetings.userId, userId)).orderBy(desc(meetings.createdAt))).map(visible);
 }
+// ponytail: checked before each OpenAI call, so a user can overshoot the limit by one call's cost.
+async function requireBudget(userId: string) {
+  const [row] = await db.select({ spent: user.spentUsd, limit: user.costLimitUsd }).from(user).where(eq(user.id, userId));
+  if (!row || row.spent >= row.limit) throw new MeetingError("You've reached your AI usage limit. Ask the admin to raise it, then retry.", 403);
+}
 export async function createMeeting(userId: string, body: unknown) {
+  await requireBudget(userId);
   const input = z.object({ title: z.string().trim().min(1).max(160).optional() }).parse(body);
   const [row] = await db.insert(meetings).values({ userId, title: input.title ?? "Untitled meeting" }).returning();
   return visible(row!);
@@ -157,6 +163,7 @@ export async function processMeeting(id: string, userId: string) {
   }
   let cost = 0;
   try {
+    await requireBudget(userId);
     const chunks = await db.select().from(meetingChunks).where(eq(meetingChunks.meetingId, id)).orderBy(asc(meetingChunks.index));
     validateChunkSequence(chunks, row.expectedChunks ?? 0);
     const chunk = chunks.find(c => c.segments === null);
@@ -208,11 +215,13 @@ export async function processMeeting(id: string, userId: string) {
       // ponytail: "Untitled meeting" doubles as the "no title given" sentinel; a user typing it literally also gets an AI title.
       const title = aiTitle && current.title === "Untitled meeting" ? aiTitle : undefined;
       await tx.update(meetings).set({ ...(title && { title }), speakerReferences: references, summary, detectedLanguage, status: chunk ? "processing" : "ready", leaseToken: null, leaseUntil: null, failures: 0, error: null, updatedAt: new Date(), ...(cost > 0 && { costUsd: sql`coalesce(${meetings.costUsd}, 0) + ${cost}` }) }).where(eq(meetings.id, id));
+      if (cost > 0) await tx.update(user).set({ spentUsd: sql`${user.spentUsd} + ${cost}` }).where(eq(user.id, userId));
     });
     return { meeting: visible(await owned(id, userId)), remaining: chunk ? chunks.filter(c => c.segments === null).length : 0 };
   } catch (error) {
     const message = error instanceof MeetingError ? error.message : "Processing failed. Your audio is saved. Retry to continue.";
     await db.update(meetings).set({ status: "error", error: message, failures: row.failures + 1, leaseToken: null, leaseUntil: null, updatedAt: new Date(), ...(cost > 0 && { costUsd: sql`coalesce(${meetings.costUsd}, 0) + ${cost}` }) }).where(and(scope(id, userId), eq(meetings.leaseToken, token)));
+    if (cost > 0) await db.update(user).set({ spentUsd: sql`${user.spentUsd} + ${cost}` }).where(eq(user.id, userId));
     throw new MeetingError(message, error instanceof MeetingError ? error.status : 502);
   }
 }
