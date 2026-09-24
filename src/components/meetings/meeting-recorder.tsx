@@ -196,7 +196,8 @@ export function MeetingRecorder({
       }
       streams.push(
         await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: true, noiseSuppression: true },
+          // Echo cancellation only when tab audio is captured directly; mic-only mode must hear the device's own speaker.
+          audio: { echoCancellation: mode === "tab", noiseSuppression: true },
           video: false,
         })
       );
