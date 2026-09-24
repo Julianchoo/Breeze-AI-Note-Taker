@@ -29,6 +29,13 @@ export const metadata: Metadata = {
   title: { default: "Breeze - Meeting notes", template: "%s | Breeze" },
   description:
     "Capture your meetings and return to clear summaries, speaker transcripts, and audio.",
+  openGraph: {
+    title: "Breeze - Meeting notes",
+    description: "Capture your meetings and return to clear summaries, speaker transcripts, and audio.",
+    siteName: "Breeze",
+    type: "website",
+  },
+  twitter: { card: "summary_large_image" },
 };
 
 export default function RootLayout({
