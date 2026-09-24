@@ -4,7 +4,7 @@ import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { auth } from "./auth";
 import { db } from "./db";
-import { MAX_CHUNKS, type Meeting, type MeetingDetail, type TranscriptSegment } from "./meeting-types";
+import { MAX_CHUNKS, type Meeting, type MeetingDetail, type SharedMeeting, type TranscriptSegment } from "./meeting-types";
 import { MeetingError, MAX_WAV_BYTES, chunkIndex, requireSameOrigin, segmentsByChunk, tokensToSegments, validateChunkSequence, wavDuration } from "./meeting-validation";
 import { SONIOX_USD_PER_HOUR, callCostUsd } from "./openai-pricing";
 import { meetingChunks, meetings, user } from "./schema";
@@ -12,7 +12,7 @@ import { ADMIN_EMAIL } from "./utils";
 
 type Row = Pick<typeof meetings.$inferSelect, keyof Meeting>;
 function visible(row: Row): Meeting {
-  return { id: row.id, title: row.title, status: row.status, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), durationSeconds: row.durationSeconds, expectedChunks: row.expectedChunks, summary: row.summary, detectedLanguage: row.detectedLanguage, error: row.error, costUsd: row.costUsd, speakerNames: row.speakerNames, speakerSuggestions: row.speakerSuggestions, aiContext: row.aiContext };
+  return { id: row.id, title: row.title, status: row.status, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), durationSeconds: row.durationSeconds, expectedChunks: row.expectedChunks, summary: row.summary, detectedLanguage: row.detectedLanguage, error: row.error, costUsd: row.costUsd, speakerNames: row.speakerNames, speakerSuggestions: row.speakerSuggestions, aiContext: row.aiContext, shareToken: row.shareToken, shareSummary: row.shareSummary, shareRecording: row.shareRecording, shareTranscript: row.shareTranscript };
 }
 export async function meetingRoute(request: Request, action: (userId: string) => Promise<Response>) {
   try {
@@ -20,12 +20,17 @@ export async function meetingRoute(request: Request, action: (userId: string) =>
     const session = await auth.api.getSession({ headers: request.headers });
     if (!session) throw new MeetingError("Please sign in again.", 401);
     return await action(session.user.id);
-  } catch (error) {
-    if (error instanceof MeetingError) return Response.json({ error: error.message }, { status: error.status });
-    if (error instanceof z.ZodError || error instanceof SyntaxError) return Response.json({ error: "Invalid request." }, { status: 400 });
-    // Do not expose provider messages, SQL parameters, audio, transcripts or credentials.
-    return Response.json({ error: "The request could not be completed. Your saved audio is safe; please retry." }, { status: 500 });
-  }
+  } catch (error) { return routeError(error); }
+}
+// Public share routes: same error mapping, no session.
+export async function shareRoute(action: () => Promise<Response>) {
+  try { return await action(); } catch (error) { return routeError(error); }
+}
+function routeError(error: unknown) {
+  if (error instanceof MeetingError) return Response.json({ error: error.message }, { status: error.status });
+  if (error instanceof z.ZodError || error instanceof SyntaxError) return Response.json({ error: "Invalid request." }, { status: 400 });
+  // Do not expose provider messages, SQL parameters, audio, transcripts or credentials.
+  return Response.json({ error: "The request could not be completed. Your saved audio is safe; please retry." }, { status: 500 });
 }
 function scope(id: string, userId: string) {
   if (!z.uuid().safeParse(id).success) throw new MeetingError("Meeting not found.", 404);
@@ -37,7 +42,7 @@ async function owned(id: string, userId: string) {
   return row;
 }
 export async function listMeetings(userId: string) {
-  return (await db.select({ id: meetings.id, title: meetings.title, status: meetings.status, createdAt: meetings.createdAt, updatedAt: meetings.updatedAt, durationSeconds: meetings.durationSeconds, expectedChunks: meetings.expectedChunks, error: meetings.error, summary: meetings.summary, detectedLanguage: meetings.detectedLanguage, costUsd: meetings.costUsd, speakerNames: meetings.speakerNames, speakerSuggestions: meetings.speakerSuggestions, aiContext: meetings.aiContext }).from(meetings).where(eq(meetings.userId, userId)).orderBy(desc(meetings.createdAt))).map(visible);
+  return (await db.select({ id: meetings.id, title: meetings.title, status: meetings.status, createdAt: meetings.createdAt, updatedAt: meetings.updatedAt, durationSeconds: meetings.durationSeconds, expectedChunks: meetings.expectedChunks, error: meetings.error, summary: meetings.summary, detectedLanguage: meetings.detectedLanguage, costUsd: meetings.costUsd, speakerNames: meetings.speakerNames, speakerSuggestions: meetings.speakerSuggestions, aiContext: meetings.aiContext, shareToken: meetings.shareToken, shareSummary: meetings.shareSummary, shareRecording: meetings.shareRecording, shareTranscript: meetings.shareTranscript }).from(meetings).where(eq(meetings.userId, userId)).orderBy(desc(meetings.createdAt))).map(visible);
 }
 // ponytail: checked before each OpenAI call, so a user can overshoot the limit by one call's cost.
 async function requireBudget(userId: string) {
@@ -62,12 +67,20 @@ export async function updateMeeting(id: string, userId: string, body: unknown) {
     z.object({ action: z.literal("resummarize") }),
     z.object({ title: z.string().trim().min(1).max(160) }),
     z.object({ speakerNames: z.record(z.string(), z.string().trim().max(60)) }),
+    z.object({ share: z.object({ enabled: z.boolean().optional(), regenerate: z.literal(true).optional(), summary: z.boolean().optional(), recording: z.boolean().optional(), transcript: z.boolean().optional() }) }),
   ]).parse(body);
   return db.transaction(async tx => {
     const [row] = await tx.select().from(meetings).where(scope(id, userId)).for("update");
     if (!row) throw new MeetingError("Meeting not found.", 404);
     if ("title" in input) {
       const [updated] = await tx.update(meetings).set({ title: input.title, updatedAt: new Date() }).where(eq(meetings.id, id)).returning();
+      return visible(updated!);
+    }
+    if ("share" in input) {
+      const { enabled = row.shareToken !== null, regenerate, summary, recording, transcript } = input.share;
+      if (regenerate && !enabled) throw new MeetingError("Turn the share link on first.", 409);
+      const shareToken = !enabled ? null : regenerate || !row.shareToken ? randomUUID() : row.shareToken;
+      const [updated] = await tx.update(meetings).set({ shareToken, shareSummary: summary, shareRecording: recording, shareTranscript: transcript, updatedAt: new Date() }).where(eq(meetings.id, id)).returning();
       return visible(updated!);
     }
     if ("speakerNames" in input) {
@@ -140,6 +153,28 @@ async function audioBytes(path: string) {
 }
 export async function getAudio(id: string, userId: string, indexValue: string, request: Request) {
   await owned(id, userId);
+  return serveAudio(id, indexValue, request);
+}
+async function shared(token: string) {
+  if (!z.uuid().safeParse(token).success) throw new MeetingError("Meeting not found.", 404);
+  const [row] = await db.select().from(meetings).where(eq(meetings.shareToken, token));
+  if (!row) throw new MeetingError("Meeting not found.", 404);
+  return row;
+}
+// Only the shared sections leave the server.
+export async function getSharedMeeting(token: string): Promise<SharedMeeting> {
+  const row = await shared(token);
+  const chunks = await db.select({ index: meetingChunks.index, durationSeconds: meetingChunks.durationSeconds, segments: meetingChunks.segments }).from(meetingChunks).where(eq(meetingChunks.meetingId, row.id)).orderBy(asc(meetingChunks.index));
+  const segments = chunks.flatMap(c => c.segments ?? []);
+  return { title: row.title, createdAt: row.createdAt.toISOString(), durationSeconds: row.durationSeconds, labels: [...new Set(segments.map(s => s.speaker))], speakerNames: row.speakerNames,
+    ...(row.shareSummary && { summary: row.summary }), ...(row.shareRecording && { chunks: chunks.map(c => ({ index: c.index, durationSeconds: c.durationSeconds })) }), ...(row.shareTranscript && { segments }) };
+}
+export async function getSharedAudio(token: string, indexValue: string, request: Request) {
+  const row = await shared(token);
+  if (!row.shareRecording) throw new MeetingError("Audio not found.", 404);
+  return serveAudio(row.id, indexValue, request);
+}
+async function serveAudio(id: string, indexValue: string, request: Request) {
   const index = chunkIndex(indexValue);
   const [chunk] = await db.select().from(meetingChunks).where(and(eq(meetingChunks.meetingId, id), eq(meetingChunks.index, index)));
   if (!chunk) throw new MeetingError("Audio not found.", 404);

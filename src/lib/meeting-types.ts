@@ -17,6 +17,14 @@ export type Meeting = {
   speakerSuggestions: Record<string, string>;
   /** Optional user notes/focus/questions passed to the summary prompt. */
   aiContext: string | null;
+  /** Public link token; null = sharing off. Owner-only. */
+  shareToken: string | null; shareSummary: boolean; shareRecording: boolean; shareTranscript: boolean;
+};
+/** What a public share link exposes; unshared sections are omitted. */
+export type SharedMeeting = {
+  title: string; createdAt: string; durationSeconds: number;
+  labels: string[]; speakerNames: Record<string, string>;
+  summary?: string | null; chunks?: { index: number; durationSeconds: number }[]; segments?: TranscriptSegment[];
 };
 export type SearchResult = {
   id: string; title: string; createdAt: string; status: MeetingStatus;

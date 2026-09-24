@@ -4,18 +4,26 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
-  AudioLines,
   Check,
-  ChevronDown,
   Copy,
+  Globe,
   Loader2,
+  Lock,
   Pencil,
   RotateCcw,
+  Share2,
   Trash2,
   TriangleAlert,
 } from "lucide-react";
-import ReactMarkdown from "react-markdown";
 import { toast } from "sonner";
+import {
+  AudioPlayer,
+  type AudioPlayerHandle,
+  relabel,
+  SummaryProse,
+  timestamp,
+  TranscriptList,
+} from "@/components/meetings/meeting-sections";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,48 +43,6 @@ import { type Meeting, type MeetingDetail } from "@/lib/meeting-types";
 import { estimateProgress } from "@/lib/meeting-validation";
 import { ADMIN_EMAIL, usd } from "@/lib/utils";
 
-/* Reading typography for the AI summary — the most editorial surface of the product. */
-const PROSE =
-  "max-w-[64ch] text-[0.9375rem] leading-[1.8] [&>*:first-child]:mt-0 " +
-  "[&_h1]:font-display [&_h1]:mt-10 [&_h1]:mb-3 [&_h1]:text-3xl [&_h1]:leading-tight " +
-  "[&_h2]:font-display [&_h2]:mt-9 [&_h2]:mb-2 [&_h2]:text-2xl [&_h2]:leading-snug " +
-  "[&_h3]:text-muted-foreground [&_h3]:mt-7 [&_h3]:mb-2 [&_h3]:text-[0.6875rem] [&_h3]:font-medium [&_h3]:tracking-[0.18em] [&_h3]:uppercase " +
-  "[&_p]:mb-5 [&_p:last-child]:mb-0 " +
-  "[&_ul]:my-5 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-5 [&_ol]:list-decimal [&_ol]:pl-5 " +
-  "[&_li]:mb-2 [&_li]:pl-1.5 [&_li]:leading-7 [&_li]:marker:text-primary " +
-  "[&_strong]:text-foreground [&_strong]:font-semibold " +
-  "[&_em]:italic " +
-  "[&_a]:decoration-primary/40 [&_a]:underline [&_a]:underline-offset-4 [&_a]:hover:decoration-primary " +
-  "[&_blockquote]:border-primary/40 [&_blockquote]:text-muted-foreground [&_blockquote]:my-5 [&_blockquote]:border-l-2 [&_blockquote]:pl-4 [&_blockquote]:italic " +
-  "[&_code]:bg-muted [&_code]:rounded [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.8125rem] " +
-  "[&_hr]:rule-fade [&_hr]:my-8 [&_hr]:h-px [&_hr]:border-0";
-
-function timestamp(seconds: number) {
-  const value = Math.max(0, Math.floor(seconds));
-  return `${Math.floor(value / 60)}:${String(value % 60).padStart(2, "0")}`;
-}
-/** Chunks vary in length (cut at quiet moments), so a chunk starts where the earlier ones end. */
-function chunkStart(chunks: MeetingDetail["chunks"], index: number) {
-  return chunks.reduce((sum, chunk) => (chunk.index < index ? sum + chunk.durationSeconds : sum), 0);
-}
-/* Replaces whole speaker labels with their display names in one pass. Longest-first alternation keeps
-   "Part 2 · Speaker 1" whole; the letter/digit guards stop "Speaker 1" matching inside "Speaker 10". */
-export function relabel(text: string, labels: string[], names: Record<string, string>) {
-  if (!labels.length || !Object.keys(names).length) return text;
-  names = { ...names };
-  // The summary model tends to shorten "Part 1 · Speaker 1" to "Speaker 1"; accept that short form when unambiguous.
-  const short = labels.map((label) => /^Part \d+ · (.+)$/.exec(label)?.[1]);
-  short.forEach((alias, i) => {
-    const label = labels[i]!;
-    if (alias && Object.hasOwn(names, label) && !labels.includes(alias) && short.filter((s) => s === alias).length === 1)
-      names[alias] = names[label]!;
-  });
-  const alternatives = [...labels, ...Object.keys(names).filter((key) => !labels.includes(key))]
-    .sort((a, b) => b.length - a.length)
-    .map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-  const pattern = new RegExp(`(?<![\\p{L}\\p{N}])(?:${alternatives.join("|")})(?![\\p{L}\\p{N}])`, "gu");
-  return text.replace(pattern, (label) => (Object.hasOwn(names, label) ? names[label]! : label));
-}
 /* Ticks only while mounted; keyed by phase so the elapsed time restarts when transcription hands off to the summary. */
 function ProcessingProgress({ audioSeconds, transcribed }: { audioSeconds: number; transcribed: boolean }) {
   const [elapsed, setElapsed] = useState(0);
@@ -128,17 +94,14 @@ export function MeetingDetailView({ id }: { id: string }) {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [audioIndex, setAudioIndex] = useState(0);
-  const [audioError, setAudioError] = useState("");
   const [aiContext, setAiContext] = useState("");
   const [copied, setCopied] = useState(false);
   const summaryRef = useRef<HTMLDivElement>(null);
   const [speaker, setSpeaker] = useState<string | null>(null);
   const [speakerName, setSpeakerName] = useState("");
   const [speakerSaving, setSpeakerSaving] = useState(false);
-  const audio = useRef<HTMLAudioElement>(null);
-  const pendingSeek = useRef<number | null>(null);
-  const playNext = useRef(false);
+  const [shareSaving, setShareSaving] = useState(false);
+  const player = useRef<AudioPlayerHandle>(null);
   const endpoint = `/api/meetings/${id}`;
 
   useEffect(() => {
@@ -253,6 +216,27 @@ export function MeetingDetailView({ id }: { id: string }) {
       setSpeakerSaving(false);
     }
   }
+  async function share(change: {
+    enabled?: boolean;
+    regenerate?: true;
+    summary?: boolean;
+    recording?: boolean;
+    transcript?: boolean;
+  }) {
+    setShareSaving(true);
+    try {
+      const { meeting } = await request<{ meeting: Meeting }>(endpoint, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ share: change }),
+      });
+      setDetail((current) => (current ? { ...current, meeting } : current));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update sharing.");
+    } finally {
+      setShareSaving(false);
+    }
+  }
   async function remove() {
     setDeleting(true);
     try {
@@ -281,25 +265,6 @@ export function MeetingDetailView({ id }: { id: string }) {
       toast.error(error instanceof Error ? error.message : "Could not finish recording.");
     } finally {
       setSaving(false);
-    }
-  }
-  function seek(seconds: number) {
-    if (!detail?.chunks.length) return;
-    const chunk = detail.chunks.find(
-      (chunk) =>
-        seconds >= chunkStart(detail.chunks, chunk.index) &&
-        seconds < chunkStart(detail.chunks, chunk.index) + chunk.durationSeconds
-    );
-    if (!chunk) return;
-    const offset = seconds - chunkStart(detail.chunks, chunk.index);
-    if (chunk.index === audioIndex && audio.current) {
-      audio.current.currentTime = offset;
-      void audio.current.play().catch(() => setAudioError("Press play to listen to this moment."));
-    } else {
-      pendingSeek.current = offset;
-      playNext.current = true;
-      setAudioIndex(chunk.index);
-      setAudioError("");
     }
   }
   if (!detail)
@@ -371,6 +336,17 @@ export function MeetingDetailView({ id }: { id: string }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
       toast.success("Summary copied. Paste it into Notion or Google Docs.");
+    } catch {
+      toast.error("Could not copy. Check your browser's clipboard permission.");
+    }
+  }
+  // Rendered only after the client fetch, so `location` is always defined here.
+  const shareUrl = meeting.shareToken && `${location.origin}/share/${meeting.shareToken}`;
+  async function copyShareUrl() {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success("Link copied.");
     } catch {
       toast.error("Could not copy. Check your browser's clipboard permission.");
     }
@@ -492,6 +468,97 @@ export function MeetingDetailView({ id }: { id: string }) {
                   <Pencil />
                 </Button>
               )}
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="ghost" size="icon" aria-label="Share meeting">
+                    <Share2 />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Share this meeting</DialogTitle>
+                    <DialogDescription>
+                      Anyone with the link can view the sections you choose, without signing in.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="border-border flex items-center gap-3 rounded-xl border px-4 py-3">
+                    <span
+                      className={`flex size-9 shrink-0 items-center justify-center rounded-full ${meeting.shareToken ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}
+                      aria-hidden="true"
+                    >
+                      {meeting.shareToken ? <Globe className="size-4" /> : <Lock className="size-4" />}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium">
+                        {meeting.shareToken ? "Anyone with the link" : "Only you"}
+                      </p>
+                      <p className="text-muted-foreground text-xs">
+                        {meeting.shareToken ? "Can view the sections below." : "This meeting is private."}
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant={meeting.shareToken ? "outline" : "default"}
+                      disabled={shareSaving}
+                      onClick={() => void share({ enabled: !meeting.shareToken })}
+                    >
+                      {shareSaving && <Loader2 className="animate-spin" aria-hidden="true" />}
+                      {meeting.shareToken ? "Stop sharing" : "Create link"}
+                    </Button>
+                  </div>
+                  {shareUrl && (
+                    <div className="animate-fade-in flex flex-col gap-5">
+                      <div className="flex gap-2">
+                        <Input
+                          readOnly
+                          value={shareUrl}
+                          aria-label="Share link"
+                          onFocus={(event) => event.target.select()}
+                          className="min-w-0 flex-1 font-mono text-xs"
+                        />
+                        <Button variant="outline" onClick={copyShareUrl}>
+                          <Copy />
+                          Copy
+                        </Button>
+                      </div>
+                      <fieldset className="flex flex-col gap-2.5" disabled={shareSaving}>
+                        <legend className="eyebrow mb-3">Shared sections</legend>
+                        {(
+                          [
+                            ["summary", "shareSummary", "AI summary"],
+                            ["recording", "shareRecording", "Recording (listen only)"],
+                            ["transcript", "shareTranscript", "Transcript"],
+                          ] as const
+                        ).map(([key, field, label]) => (
+                          <label key={key} className="flex cursor-pointer items-center gap-2.5 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={meeting[field]}
+                              onChange={(event) => void share({ [key]: event.target.checked })}
+                              className="accent-primary size-4 cursor-pointer"
+                            />
+                            {label}
+                          </label>
+                        ))}
+                      </fieldset>
+                      <div className="flex flex-col items-start gap-1">
+                        <Button
+                          variant="link"
+                          className="h-auto px-0"
+                          disabled={shareSaving}
+                          onClick={() => void share({ regenerate: true })}
+                        >
+                          <RotateCcw />
+                          Regenerate link
+                        </Button>
+                        <p className="text-muted-foreground text-xs">
+                          The current link stops working for everyone who has it.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </DialogContent>
+              </Dialog>
               <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
                 <DialogTrigger asChild>
                   <Button
@@ -677,9 +744,7 @@ export function MeetingDetailView({ id }: { id: string }) {
             </div>
           </div>
           {summary ? (
-            <div ref={summaryRef} className={PROSE}>
-              <ReactMarkdown>{summary}</ReactMarkdown>
-            </div>
+            <SummaryProse ref={summaryRef} summary={summary} />
           ) : (
             <p className="text-muted-foreground max-w-prose text-sm leading-6">
               Your summary will appear here once the recording has been transcribed.
@@ -688,84 +753,7 @@ export function MeetingDetailView({ id }: { id: string }) {
         </section>
 
         {chunks.length > 0 && (
-          <section
-            className="animate-fade-up mb-12 flex flex-col gap-4"
-            aria-labelledby="audio-heading"
-          >
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 id="audio-heading" className="font-display flex items-center gap-2.5 text-2xl">
-                <AudioLines className="text-muted-foreground size-5" aria-hidden="true" />
-                Recording
-              </h2>
-              <label className="text-muted-foreground flex items-center gap-2 text-xs">
-                Audio part
-                <span className="relative inline-flex items-center">
-                  <select
-                    aria-label="Audio part"
-                    value={audioIndex}
-                    onChange={(event) => {
-                      playNext.current = false;
-                      pendingSeek.current = null;
-                      setAudioIndex(Number(event.target.value));
-                      setAudioError("");
-                    }}
-                    className="border-border bg-card text-foreground hover:border-primary/40 focus-visible:border-ring focus-visible:ring-ring/50 h-8 cursor-pointer appearance-none rounded-full border py-0 pr-8 pl-3.5 font-mono text-xs tabular-nums transition-colors focus-visible:ring-[3px] focus-visible:outline-none"
-                  >
-                    {chunks.map((chunk) => (
-                      <option key={chunk.index} value={chunk.index}>
-                        {chunk.index + 1} · {timestamp(chunkStart(chunks, chunk.index))}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown
-                    className="text-muted-foreground pointer-events-none absolute right-3 size-3.5"
-                    aria-hidden="true"
-                  />
-                </span>
-              </label>
-            </div>
-            <div className="border-border bg-card rounded-2xl border p-3 sm:p-4">
-              <audio
-                ref={audio}
-                controls
-                preload="none"
-                src={`${endpoint}/audio/${audioIndex}`}
-                className="w-full [color-scheme:light] dark:[color-scheme:dark]"
-                onError={() =>
-                  setAudioError(
-                    "Audio could not load. Check your connection and try selecting the part again."
-                  )
-                }
-                onLoadedMetadata={() => {
-                  if (audio.current && pendingSeek.current !== null) {
-                    audio.current.currentTime = pendingSeek.current;
-                    pendingSeek.current = null;
-                  }
-                  if (playNext.current) {
-                    playNext.current = false;
-                    void audio.current
-                      ?.play()
-                      .catch(() => setAudioError("Press play to continue listening."));
-                  }
-                }}
-                onEnded={() => {
-                  const next = chunks.find((chunk) => chunk.index === audioIndex + 1);
-                  if (next) {
-                    playNext.current = true;
-                    setAudioIndex(next.index);
-                  }
-                }}
-              />
-            </div>
-            <p className="text-muted-foreground text-xs leading-5">
-              Parts play in sequence. Select a transcript timestamp to jump straight to that moment.
-            </p>
-            {audioError && (
-              <p role="alert" className="text-destructive text-sm">
-                {audioError}
-              </p>
-            )}
-          </section>
+          <AudioPlayer ref={player} chunks={chunks} src={`${endpoint}/audio`} />
         )}
 
         {labels.length > 0 && meeting.status !== "recording" && (
@@ -861,61 +849,12 @@ export function MeetingDetailView({ id }: { id: string }) {
           </section>
         )}
 
-        <section className="animate-fade-up" aria-labelledby="transcript-heading">
-          <details className="group">
-            <summary className="border-border hover:border-primary/30 flex cursor-pointer list-none items-center justify-between gap-4 rounded-xl border px-4 py-3.5 transition-colors select-none sm:px-5 [&::-webkit-details-marker]:hidden">
-              <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
-                <h2 id="transcript-heading" className="font-display text-2xl">
-                  Full transcript
-                </h2>
-                {segments.length > 0 && (
-                  <span className="text-muted-foreground font-mono text-xs tabular-nums">
-                    {segments.length} segments
-                  </span>
-                )}
-              </div>
-              <span
-                className="bg-muted text-muted-foreground group-hover:text-foreground flex size-8 shrink-0 items-center justify-center rounded-full transition-transform duration-300 group-open:rotate-180"
-                aria-hidden="true"
-              >
-                <ChevronDown className="size-4" />
-              </span>
-            </summary>
-            <p className="text-muted-foreground my-6 max-w-prose text-xs leading-5">
-              Speaker labels distinguish voices across the whole recording; rename speakers above to
-              show their names. Older meetings may label speakers per audio part.
-            </p>
-            {segments.length ? (
-              <ol className="flex flex-col gap-1 pb-4">
-                {segments.map((segment, index) => (
-                  <li
-                    key={`${segment.start}-${index}`}
-                    className="hover:bg-muted/50 -mx-3 grid gap-1 rounded-lg px-3 py-2.5 transition-colors sm:grid-cols-[7.5rem_1fr] sm:gap-5"
-                  >
-                    <div className="flex items-baseline gap-2.5 sm:flex-col sm:gap-1">
-                      <button
-                        type="button"
-                        className="text-muted-foreground hover:text-primary rounded font-mono text-xs tabular-nums underline-offset-4 transition-colors hover:underline"
-                        onClick={() => seek(segment.start)}
-                        aria-label={`Play audio at ${timestamp(segment.start)}`}
-                      >
-                        {timestamp(segment.start)}
-                      </button>
-                      <span className="text-foreground/70 truncate text-[0.6875rem] font-medium tracking-[0.12em] uppercase">
-                        {meeting.speakerNames[segment.speaker] || segment.speaker}
-                      </span>
-                    </div>
-                    <p className="max-w-[62ch] text-[0.9375rem] leading-7">{segment.text}</p>
-                  </li>
-                ))}
-              </ol>
-            ) : (
-              <p className="text-muted-foreground py-6 text-sm">
-                The transcript will appear here as your audio is processed.
-              </p>
-            )}
-          </details>
-        </section>
+        <TranscriptList
+          segments={segments}
+          speakerNames={meeting.speakerNames}
+          onSeek={(seconds) => player.current?.seek(seconds)}
+          note="Speaker labels distinguish voices across the whole recording; rename speakers above to show their names. Older meetings may label speakers per audio part."
+        />
       </div>
     </div>
   );

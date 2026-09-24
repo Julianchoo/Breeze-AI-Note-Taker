@@ -107,6 +107,11 @@ export const meetings = pgTable("meetings", {
   // In-flight Soniox upload and transcription job; cleared once the transcript is saved or the job fails.
   sonioxFileId: text("soniox_file_id"),
   sonioxTranscriptionId: text("soniox_transcription_id"),
+  // Public view-only link; NULL = sharing off. Each section is shared independently.
+  shareToken: uuid("share_token").unique(),
+  shareSummary: boolean("share_summary").default(true).notNull(),
+  shareRecording: boolean("share_recording").default(false).notNull(),
+  shareTranscript: boolean("share_transcript").default(false).notNull(),
 }, (table) => [index("meetings_user_created_idx").on(table.userId, table.createdAt)]);
 
 export const meetingChunks = pgTable("meeting_chunks", {
