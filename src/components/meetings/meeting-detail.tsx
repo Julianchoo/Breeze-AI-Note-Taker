@@ -32,6 +32,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useSession } from "@/lib/auth-client";
 import { type Meeting, type MeetingDetail } from "@/lib/meeting-types";
+import { estimateProgress } from "@/lib/meeting-validation";
 import { ADMIN_EMAIL, usd } from "@/lib/utils";
 
 /* Reading typography for the AI summary — the most editorial surface of the product. */
@@ -75,6 +76,38 @@ export function relabel(text: string, labels: string[], names: Record<string, st
     .map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
   const pattern = new RegExp(`(?<![\\p{L}\\p{N}])(?:${alternatives.join("|")})(?![\\p{L}\\p{N}])`, "gu");
   return text.replace(pattern, (label) => (Object.hasOwn(names, label) ? names[label]! : label));
+}
+/* Ticks only while mounted; keyed by phase so the elapsed time restarts when transcription hands off to the summary. */
+function ProcessingProgress({ audioSeconds, transcribed }: { audioSeconds: number; transcribed: boolean }) {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    const start = Date.now();
+    const timer = setInterval(() => setElapsed((Date.now() - start) / 1000), 500);
+    return () => clearInterval(timer);
+  }, []);
+  const percent = estimateProgress(audioSeconds, transcribed, elapsed);
+  return (
+    // Not a live region: the section's status role would otherwise re-announce every tick.
+    <div aria-live="off" className="mt-5 flex items-center gap-3">
+      <div
+        role="progressbar"
+        aria-label={transcribed ? "Summary progress" : "Transcription progress"}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={percent}
+        aria-valuetext={`About ${percent}% — estimated`}
+        className="bg-muted h-1.5 flex-1 overflow-hidden rounded-full"
+      >
+        <div
+          className="bg-primary h-full rounded-full transition-[width] duration-500 ease-out"
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+      <span className="text-muted-foreground font-mono text-xs tabular-nums" aria-hidden="true">
+        ~{percent}%
+      </span>
+    </div>
+  );
 }
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, options);
@@ -312,10 +345,8 @@ export function MeetingDetailView({ id }: { id: string }) {
       </div>
     );
   const { meeting, chunks, segments } = detail;
-  const completed = chunks.filter((chunk) => chunk.status === "ready").length;
-  /* The summary counts as the final step, so the bar never sits at 100% while it is still writing. */
-  const totalSteps = chunks.length + 1;
-  const percent = Math.round((completed / totalSteps) * 100);
+  /* The whole recording is transcribed in one job, so there is no per-part progress to show. */
+  const transcribed = chunks.every((chunk) => chunk.status === "ready");
   const labels = [...new Set(segments.map((segment) => segment.speaker))];
   const summary = meeting.summary && relabel(meeting.summary, labels, meeting.speakerNames);
   /* Copies as HTML (Notion and Google Docs turn it into real headings/lists) with a Markdown plain-text fallback. */
@@ -501,40 +532,31 @@ export function MeetingDetailView({ id }: { id: string }) {
 
         {(processing || meeting.status === "processing") && (
           <section
-            aria-live="polite"
+            role="status"
+            aria-busy="true"
             className="border-border bg-card animate-fade-up mb-10 rounded-2xl border p-6 sm:p-7"
           >
-            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-              <h2 className="font-display flex items-center gap-2.5 text-2xl">
-                <span
-                  className="bg-primary/70 size-2 shrink-0 animate-pulse rounded-full"
-                  aria-hidden="true"
-                />
-                {completed === chunks.length ? "Writing your summary" : "Preparing the transcript"}
-              </h2>
-              <span className="text-muted-foreground font-mono text-xs tabular-nums">
-                {percent}%
-              </span>
-            </div>
-            <div
-              role="progressbar"
-              aria-valuemin={0}
-              aria-valuemax={totalSteps}
-              aria-valuenow={completed}
-              aria-valuetext={`${completed} of ${chunks.length} audio parts transcribed`}
-              className="bg-muted mt-5 h-1.5 w-full overflow-hidden rounded-full"
-            >
-              <div
-                className="bg-primary h-full rounded-full transition-[width] duration-700 ease-out"
-                style={{ width: `${percent}%` }}
+            <h2 className="font-display flex items-center gap-2.5 text-2xl">
+              <span
+                className="bg-primary/70 size-2 shrink-0 animate-pulse rounded-full"
+                aria-hidden="true"
               />
-            </div>
+              {transcribed ? "Writing your summary" : "Transcribing the recording"}
+            </h2>
+            <ProcessingProgress
+              key={String(transcribed)}
+              audioSeconds={
+                meeting.durationSeconds ||
+                chunks.reduce((sum, chunk) => sum + chunk.durationSeconds, 0)
+              }
+              transcribed={transcribed}
+            />
+            <p className="text-muted-foreground mt-2 text-xs">Estimated from the recording length.</p>
             <p className="text-muted-foreground mt-4 max-w-prose text-sm leading-6">
-              <span className="text-foreground font-mono tabular-nums">
-                {completed}/{chunks.length}
-              </span>{" "}
-              audio parts transcribed. Keep this page open to continue; reopen it any time to resume
-              where it left off.
+              {transcribed
+                ? "The transcript is ready."
+                : "The whole recording is transcribed at once; longer recordings take longer."}{" "}
+              Keep this page open to continue; reopen it any time to resume where it left off.
             </p>
           </section>
         )}
@@ -860,8 +882,8 @@ export function MeetingDetailView({ id }: { id: string }) {
               </span>
             </summary>
             <p className="text-muted-foreground my-6 max-w-prose text-xs leading-5">
-              Speaker labels distinguish voices within each audio part. The same person may have a
-              different label in another part; rename speakers above to show their names.
+              Speaker labels distinguish voices across the whole recording; rename speakers above to
+              show their names. Older meetings may label speakers per audio part.
             </p>
             {segments.length ? (
               <ol className="flex flex-col gap-1 pb-4">

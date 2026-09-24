@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { sliceChunks } from "../src/lib/audio-file";
-import { chunkIndex, requireSameOrigin, validateChunkSequence, wavDuration } from "../src/lib/meeting-validation";
+import { chunkIndex, estimateProgress, requireSameOrigin, segmentsByChunk, tokensToSegments, validateChunkSequence, wavDuration } from "../src/lib/meeting-validation";
 import { callCostUsd } from "../src/lib/openai-pricing";
 
 function wav(seconds: number) {
@@ -47,4 +47,28 @@ close(callCostUsd("gpt-4o-transcribe-diarize", { usage: { type: "tokens", input_
 close(callCostUsd("gpt-4o-transcribe-diarize", { usage: { type: "duration", seconds: 120 } }), 0.012);
 close(callCostUsd("gpt-4o-transcribe-diarize", { usage: { type: "tokens", total_tokens: 619, input_tokens: 160, input_token_details: { text_tokens: 0, audio_tokens: 160 }, output_tokens: 459 } }), 0.00499);
 for (const body of [undefined, null, {}, "text", 7, { usage: null }, { usage: {} }, { usage: { type: "tokens" } }, { usage: { type: "duration", seconds: -1 } }, { usage: { prompt_tokens: NaN, completion_tokens: 1 } }, { usage: { prompt_tokens: Infinity, completion_tokens: 1 } }, { usage: { type: "unheard-of", credits: 5 } }]) assert.equal(callCostUsd("gpt-4.1-mini", body), 0);
-console.log("Meeting WAV, four-hour bounds, complete 105–120 s chunk sequence, CSRF, and OpenAI cost checks passed.");
+// Soniox tokens: ms → s, split on speaker change, and on a sentence end only once the segment lasts 20 s.
+const token = (text: string, start: number, end: number, speaker: string | number | null) => ({ text, start_ms: start, end_ms: end, speaker });
+assert.deepEqual(tokensToSegments([token("Hel", 0, 200, "1"), token("lo.", 200, 500, "1"), token(" Hi", 600, 900, 2), token(" there", 900, 1200, 2)]), [
+  { start: 0, end: 0.5, text: "Hello.", speaker: "Speaker 1" }, { start: 0.6, end: 1.2, text: "Hi there", speaker: "Speaker 2" }]);
+assert.deepEqual(tokensToSegments([token("Long.", 0, 21_000, "1"), token(" Next", 21_000, 22_000, "1"), token(" more.", 22_000, 23_000, "1"), token(" Tail", 23_000, 24_000, "1")]).map(s => s.text), ["Long.", "Next more. Tail"]);
+assert.deepEqual(tokensToSegments([token(" ", 0, 10, "1"), token("x", 10, 20, null)]), [{ start: 0.01, end: 0.02, text: "x", speaker: "Unknown speaker" }]);
+const at = (start: number) => ({ start, end: start + 1, text: "t", speaker: "Speaker 1" });
+assert.deepEqual(segmentsByChunk([at(0), at(119.9), at(120), at(230), at(300)], [120, 110, 50]).map(p => p.map(s => s.start)), [[0, 119.9], [120], [230, 300]]);
+assert.deepEqual(segmentsByChunk([at(5)], [120, 60]), [[at(5)], []]);
+// Estimated progress: starts at 0, never decreases (even across the phase flip), stays below 100 until done.
+for (const d of [0, 60, 3600, 14_400]) {
+  const w1 = Math.round(100 * (10 + d / 20) / (10 + d / 20 + 15 + d / 30));
+  assert.equal(estimateProgress(d, false, 0), 0);
+  assert.equal(estimateProgress(d, true, 0), w1);
+  for (const transcribed of [false, true]) {
+    let previous = transcribed ? w1 : 0;
+    for (let t = 0; t <= 100_000; t += 7) {
+      const value = estimateProgress(d, transcribed, t);
+      assert.ok(value >= previous && value < 100, `${d}s ${transcribed} ${t}s → ${value}`);
+      previous = value;
+    }
+    assert.ok(previous <= (transcribed ? 99 : w1));
+  }
+}
+console.log("Meeting WAV, four-hour bounds, complete 105–120 s chunk sequence, CSRF, OpenAI cost, Soniox segment and progress estimate checks passed.");

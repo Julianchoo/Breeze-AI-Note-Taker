@@ -1,0 +1,1 @@
+ALTER TABLE "meetings" DROP COLUMN "speaker_references";

@@ -50,6 +50,20 @@
       "when": 1790168101475,
       "tag": "0006_unaccent",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790246708659,
+      "tag": "0007_drop_speaker_references",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790246713983,
+      "tag": "0008_soniox_job",
+      "breakpoints": true
     }
   ]
 }

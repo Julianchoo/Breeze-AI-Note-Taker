@@ -93,7 +93,7 @@ export const meetings = pgTable("meetings", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   durationSeconds: doublePrecision("duration_seconds").default(0).notNull(),
-  costUsd: doublePrecision("cost_usd"),   // OpenAI spend at list price; NULL = never recorded
+  costUsd: doublePrecision("cost_usd"),   // OpenAI + Soniox spend at list price; NULL = never recorded
   expectedChunks: integer("expected_chunks"),
   summary: text("summary"),
   detectedLanguage: text("detected_language"),
@@ -104,7 +104,9 @@ export const meetings = pgTable("meetings", {
   speakerNames: jsonb("speaker_names").$type<Record<string, string>>().default({}).notNull(),
   speakerSuggestions: jsonb("speaker_suggestions").$type<Record<string, string>>().default({}).notNull(),
   aiContext: text("ai_context"),
-  speakerReferences: jsonb("speaker_references").$type<{ name: string; data: string }[]>().default([]).notNull(),
+  // In-flight Soniox upload and transcription job; cleared once the transcript is saved or the job fails.
+  sonioxFileId: text("soniox_file_id"),
+  sonioxTranscriptionId: text("soniox_transcription_id"),
 }, (table) => [index("meetings_user_created_idx").on(table.userId, table.createdAt)]);
 
 export const meetingChunks = pgTable("meeting_chunks", {

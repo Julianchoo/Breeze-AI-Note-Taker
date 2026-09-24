@@ -10,7 +10,10 @@ const PRICING = {
   "gpt-4.1-mini": { input: 0.4, output: 1.6 },
 } as const;
 
-const amount = z.number().finite().nonnegative();
+// Soniox stt-async-v5 list price, speaker diarization included. Checked 2026-09-24 against https://soniox.com/pricing.
+export const SONIOX_USD_PER_HOUR = 0.1;
+
+const amount =z.number().finite().nonnegative();
 const usageSchema = z.union([
   z.object({ type: z.literal("tokens"), input_tokens: amount, output_tokens: amount }),
   z.object({ type: z.literal("duration"), seconds: amount }),
