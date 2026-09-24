@@ -31,7 +31,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useSession } from "@/lib/auth-client";
-import { CHUNK_SECONDS, type Meeting, type MeetingDetail } from "@/lib/meeting-types";
+import { type Meeting, type MeetingDetail } from "@/lib/meeting-types";
 import { ADMIN_EMAIL, usd } from "@/lib/utils";
 
 /* Reading typography for the AI summary — the most editorial surface of the product. */
@@ -53,6 +53,10 @@ const PROSE =
 function timestamp(seconds: number) {
   const value = Math.max(0, Math.floor(seconds));
   return `${Math.floor(value / 60)}:${String(value % 60).padStart(2, "0")}`;
+}
+/** Chunks vary in length (cut at quiet moments), so a chunk starts where the earlier ones end. */
+function chunkStart(chunks: MeetingDetail["chunks"], index: number) {
+  return chunks.reduce((sum, chunk) => (chunk.index < index ? sum + chunk.durationSeconds : sum), 0);
 }
 /* Replaces whole speaker labels with their display names in one pass. Longest-first alternation keeps
    "Part 2 · Speaker 1" whole; the letter/digit guards stop "Speaker 1" matching inside "Speaker 10". */
@@ -250,11 +254,11 @@ export function MeetingDetailView({ id }: { id: string }) {
     if (!detail?.chunks.length) return;
     const chunk = detail.chunks.find(
       (chunk) =>
-        seconds >= chunk.index * CHUNK_SECONDS &&
-        seconds < chunk.index * CHUNK_SECONDS + chunk.durationSeconds
+        seconds >= chunkStart(detail.chunks, chunk.index) &&
+        seconds < chunkStart(detail.chunks, chunk.index) + chunk.durationSeconds
     );
     if (!chunk) return;
-    const offset = seconds - chunk.index * CHUNK_SECONDS;
+    const offset = seconds - chunkStart(detail.chunks, chunk.index);
     if (chunk.index === audioIndex && audio.current) {
       audio.current.currentTime = offset;
       void audio.current.play().catch(() => setAudioError("Press play to listen to this moment."));
@@ -687,7 +691,7 @@ export function MeetingDetailView({ id }: { id: string }) {
                   >
                     {chunks.map((chunk) => (
                       <option key={chunk.index} value={chunk.index}>
-                        {chunk.index + 1} · {timestamp(chunk.index * CHUNK_SECONDS)}
+                        {chunk.index + 1} · {timestamp(chunkStart(chunks, chunk.index))}
                       </option>
                     ))}
                   </select>

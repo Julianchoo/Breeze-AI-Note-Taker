@@ -1,4 +1,4 @@
-import { CHUNK_SECONDS, MAX_CHUNKS } from "./meeting-types";
+import { CHUNK_SECONDS, MAX_CHUNKS, MIN_CHUNK_SECONDS } from "./meeting-types";
 
 export class MeetingError extends Error {
   constructor(message: string, public status = 400) { super(message); }
@@ -29,7 +29,7 @@ export function wavDuration(wav: Buffer) {
 }
 export function validateChunkSequence(chunks: { index: number; durationSeconds: number }[], expected: number) {
   if (!Number.isInteger(expected) || expected < 1 || expected > MAX_CHUNKS || chunks.length !== expected ||
-      chunks.some((chunk, index) => chunk.index !== index || (index < expected - 1 && chunk.durationSeconds !== CHUNK_SECONDS))) {
+      chunks.some((chunk, index) => chunk.index !== index || (index < expected - 1 && (chunk.durationSeconds < MIN_CHUNK_SECONDS || chunk.durationSeconds > CHUNK_SECONDS)))) {
     throw new MeetingError("Some audio parts are missing. Retry saving before finishing.", 409);
   }
 }

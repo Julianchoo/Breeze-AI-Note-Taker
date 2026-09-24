@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { sliceChunks } from "../src/lib/audio-file";
 import { chunkIndex, requireSameOrigin, validateChunkSequence, wavDuration } from "../src/lib/meeting-validation";
 import { callCostUsd } from "../src/lib/openai-pricing";
 
@@ -16,10 +17,24 @@ assert.throws(() => wavDuration(wav(121)));
 const corrupt = wav(1); corrupt.writeUInt32LE(48000, 24);
 assert.throws(() => wavDuration(corrupt));
 assert.throws(() => wavDuration(Buffer.from("invalid")));
-assert.equal(chunkIndex("119"), 119);
-for (const index of [null, "", "120", "-1", "1.2", "Infinity"]) assert.throws(() => chunkIndex(index));
+assert.equal(chunkIndex("137"), 137);
+for (const index of [null, "", "138", "-1", "1.2", "Infinity"]) assert.throws(() => chunkIndex(index));
 validateChunkSequence([{ index: 0, durationSeconds: 120 }, { index: 1, durationSeconds: 0.5 }], 2);
-validateChunkSequence(Array.from({ length: 120 }, (_, index) => ({ index, durationSeconds: 120 })), 120);
+validateChunkSequence(Array.from({ length: 138 }, (_, index) => ({ index, durationSeconds: 105 })), 138);
+assert.throws(() => validateChunkSequence(Array.from({ length: 139 }, (_, index) => ({ index, durationSeconds: 105 })), 139));
+const sequence = (durations: number[]) => durations.map((durationSeconds, index) => ({ index, durationSeconds }));
+validateChunkSequence(sequence([120, 120, 50]), 3);
+validateChunkSequence(sequence([105, 119.5, 10]), 3);
+assert.throws(() => validateChunkSequence(sequence([100, 120, 10]), 3));
+assert.throws(() => validateChunkSequence(sequence([121, 120, 10]), 3));
+// 5 min of noise with 200 ms of silence at 112 s: the first part is cut inside the silence.
+const audio = Int16Array.from({ length: 300 * 16000 }, (_, i) => (i * 7919) % 16001 - 8000);
+audio.fill(0, 111.9 * 16000, 112.1 * 16000);
+const parts = sliceChunks(audio);
+assert.ok(Math.abs(parts[0]!.length - 112 * 16000) <= 1600);
+assert.equal(parts.reduce((n, part) => n + part.length, 0), audio.length);
+validateChunkSequence(sequence(parts.map(part => part.length / 16000)), parts.length);
+assert.equal(sliceChunks(audio.subarray(0, 120 * 16000)).length, 1);
 assert.throws(() => validateChunkSequence([{ index: 1, durationSeconds: 1 }], 1));
 assert.throws(() => validateChunkSequence([{ index: 0, durationSeconds: 1 }, { index: 1, durationSeconds: 1 }], 2));
 assert.throws(() => validateChunkSequence([], 1));
@@ -32,4 +47,4 @@ close(callCostUsd("gpt-4o-transcribe-diarize", { usage: { type: "tokens", input_
 close(callCostUsd("gpt-4o-transcribe-diarize", { usage: { type: "duration", seconds: 120 } }), 0.012);
 close(callCostUsd("gpt-4o-transcribe-diarize", { usage: { type: "tokens", total_tokens: 619, input_tokens: 160, input_token_details: { text_tokens: 0, audio_tokens: 160 }, output_tokens: 459 } }), 0.00499);
 for (const body of [undefined, null, {}, "text", 7, { usage: null }, { usage: {} }, { usage: { type: "tokens" } }, { usage: { type: "duration", seconds: -1 } }, { usage: { prompt_tokens: NaN, completion_tokens: 1 } }, { usage: { prompt_tokens: Infinity, completion_tokens: 1 } }, { usage: { type: "unheard-of", credits: 5 } }]) assert.equal(callCostUsd("gpt-4.1-mini", body), 0);
-console.log("Meeting WAV, four-hour bounds, complete chunk sequence, CSRF, and OpenAI cost checks passed.");
+console.log("Meeting WAV, four-hour bounds, complete 105–120 s chunk sequence, CSRF, and OpenAI cost checks passed.");

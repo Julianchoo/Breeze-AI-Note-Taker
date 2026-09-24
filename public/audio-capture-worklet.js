@@ -12,11 +12,24 @@ class BreezeCapture extends AudioWorkletProcessor {
       if (data === "stop") this.finish();
     };
   }
-  flush() {
-    if (!this.offset) return;
-    const samples = this.buffer.slice(0, this.offset);
+  // Mirrors quietestCut in src/lib/audio-file.ts: center of the lowest-energy 100 ms window in [from, to].
+  quietestCut(from, to) {
+    const power = (i) => (i >= 0 && i < this.offset ? this.buffer[i] * this.buffer[i] : 0);
+    let energy = 0;
+    for (let i = from - 800; i < from + 800; i++) energy += power(i);
+    let best = from, bestEnergy = energy;
+    for (let center = from + 160; center <= to; center += 160) {
+      for (let i = center - 160; i < center; i++) energy += power(i + 800) - power(i - 800);
+      if (energy < bestEnergy) { bestEnergy = energy; best = center; }
+    }
+    return best;
+  }
+  flush(cut = this.offset) {
+    if (!cut) return;
+    const samples = this.buffer.slice(0, cut);
     this.port.postMessage({ samples, total: this.total }, [samples.buffer]);
-    this.offset = 0;
+    this.buffer.copyWithin(0, cut, this.offset);
+    this.offset -= cut;
   }
   finish() {
     if (!this.running) return;
@@ -45,7 +58,8 @@ class BreezeCapture extends AudioWorkletProcessor {
           this.total++;
           this.weight = 0;
           this.sum = 0;
-          if (this.offset === this.buffer.length) this.flush();
+          // Full at 120 s: send up to the quietest moment after 105 s so words aren't cut; keep the rest.
+          if (this.offset === this.buffer.length) this.flush(this.quietestCut(16000 * 105, this.buffer.length - 800));
           if (this.total === 16000 * 60 * 60 * 4) {
             this.finish();
             return false;

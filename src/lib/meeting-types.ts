@@ -1,6 +1,8 @@
 export const CHUNK_SECONDS = 120;
+// Non-final chunks are cut at the quietest moment between MIN_CHUNK_SECONDS and CHUNK_SECONDS.
+export const MIN_CHUNK_SECONDS = 105;
 export const MAX_MEETING_SECONDS = 4 * 60 * 60;
-export const MAX_CHUNKS = MAX_MEETING_SECONDS / CHUNK_SECONDS;
+export const MAX_CHUNKS = Math.ceil(MAX_MEETING_SECONDS / MIN_CHUNK_SECONDS);
 // "review": recording finished, waiting for the user's optional AI notes before processing starts.
 export type MeetingStatus = "recording" | "review" | "processing" | "ready" | "error";
 export type Meeting = {
