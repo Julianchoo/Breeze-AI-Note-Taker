@@ -24,6 +24,8 @@ const instrumentSerif = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
+  // Absolute URLs for Open Graph images; without it Next falls back to the Vercel deployment URL.
+  ...(process.env.NEXT_PUBLIC_APP_URL && { metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL) }),
   title: { default: "Breeze - Meeting notes", template: "%s | Breeze" },
   description:
     "Capture your meetings and return to clear summaries, speaker transcripts, and audio.",
