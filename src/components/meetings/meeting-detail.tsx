@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   Check,
   Copy,
+  FileDown,
   Globe,
   Loader2,
   Lock,
@@ -35,10 +36,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useSession } from "@/lib/auth-client";
+import { downloadMeetingDocx } from "@/lib/meeting-docx";
 import { type Meeting, type MeetingDetail } from "@/lib/meeting-types";
 import { estimateProgress } from "@/lib/meeting-validation";
 import { ADMIN_EMAIL, usd } from "@/lib/utils";
@@ -96,6 +104,7 @@ export function MeetingDetailView({ id }: { id: string }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [aiContext, setAiContext] = useState("");
   const [copied, setCopied] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const summaryRef = useRef<HTMLDivElement>(null);
   const [speaker, setSpeaker] = useState<string | null>(null);
   const [speakerName, setSpeakerName] = useState("");
@@ -338,6 +347,24 @@ export function MeetingDetailView({ id }: { id: string }) {
       toast.success("Summary copied. Paste it into Notion or Google Docs.");
     } catch {
       toast.error("Could not copy. Check your browser's clipboard permission.");
+    }
+  }
+  async function downloadWord(withTranscript: boolean) {
+    if (!summary) return;
+    setExporting(true);
+    try {
+      await downloadMeetingDocx({
+        title: meeting.title,
+        createdAt: meeting.createdAt,
+        durationSeconds: meeting.durationSeconds,
+        summary,
+        segments: withTranscript ? segments : [],
+        speakerNames: meeting.speakerNames,
+      });
+    } catch {
+      toast.error("Could not create the Word document.");
+    } finally {
+      setExporting(false);
     }
   }
   // Rendered only after the client fetch, so `location` is always defined here.
@@ -740,6 +767,26 @@ export function MeetingDetailView({ id }: { id: string }) {
                   {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
                   {copied ? "Copied" : "Copy for Notion / Docs"}
                 </Button>
+              )}
+              {summary && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" disabled={exporting}>
+                      {exporting ? <Loader2 className="animate-spin" aria-hidden="true" /> : <FileDown aria-hidden="true" />}
+                      Download Word
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="rounded-xl p-1.5">
+                    <DropdownMenuItem className="rounded-lg px-2 py-2" onSelect={() => void downloadWord(false)}>
+                      Summary only
+                    </DropdownMenuItem>
+                    {segments.length > 0 && (
+                      <DropdownMenuItem className="rounded-lg px-2 py-2" onSelect={() => void downloadWord(true)}>
+                        Summary + transcript
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
             </div>
           </div>
