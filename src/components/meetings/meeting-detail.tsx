@@ -40,6 +40,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -52,7 +53,13 @@ import { estimateProgress } from "@/lib/meeting-validation";
 import { ADMIN_EMAIL, usd } from "@/lib/utils";
 
 /* Ticks only while mounted; keyed by phase so the elapsed time restarts when transcription hands off to the summary. */
-function ProcessingProgress({ audioSeconds, transcribed }: { audioSeconds: number; transcribed: boolean }) {
+function ProcessingProgress({
+  audioSeconds,
+  transcribed,
+}: {
+  audioSeconds: number;
+  transcribed: boolean;
+}) {
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
     const start = Date.now();
@@ -103,13 +110,13 @@ export function MeetingDetailView({ id }: { id: string }) {
   const [deleting, setDeleting] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [aiContext, setAiContext] = useState("");
-  const [copied, setCopied] = useState(false);
   const [exporting, setExporting] = useState(false);
   const summaryRef = useRef<HTMLDivElement>(null);
   const [speaker, setSpeaker] = useState<string | null>(null);
   const [speakerName, setSpeakerName] = useState("");
   const [speakerSaving, setSpeakerSaving] = useState(false);
   const [shareSaving, setShareSaving] = useState(false);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const player = useRef<AudioPlayerHandle>(null);
   const endpoint = `/api/meetings/${id}`;
 
@@ -342,8 +349,6 @@ export function MeetingDetailView({ id }: { id: string }) {
       } catch {
         await navigator.clipboard.writeText(text);
       }
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
       toast.success("Summary copied. Paste it into Notion or Google Docs.");
     } catch {
       toast.error("Could not copy. Check your browser's clipboard permission.");
@@ -495,12 +500,53 @@ export function MeetingDetailView({ id }: { id: string }) {
                   <Pencil />
                 </Button>
               )}
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button variant="ghost" size="icon" aria-label="Share meeting">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" aria-label="Share & export">
                     <Share2 />
                   </Button>
-                </DialogTrigger>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="rounded-xl p-1.5">
+                  <DropdownMenuItem
+                    className="rounded-lg px-2 py-2"
+                    onSelect={() => setShareDialogOpen(true)}
+                  >
+                    <Globe aria-hidden="true" />
+                    Share link
+                  </DropdownMenuItem>
+                  {summary && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="rounded-lg px-2 py-2"
+                        onSelect={() => void copySummary()}
+                      >
+                        <Copy aria-hidden="true" />
+                        Copy for Notion / Docs
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="rounded-lg px-2 py-2"
+                        disabled={exporting}
+                        onSelect={() => void downloadWord(false)}
+                      >
+                        <FileDown aria-hidden="true" />
+                        Download Word — summary
+                      </DropdownMenuItem>
+                      {segments.length > 0 && (
+                        <DropdownMenuItem
+                          className="rounded-lg px-2 py-2"
+                          disabled={exporting}
+                          onSelect={() => void downloadWord(true)}
+                        >
+                          <FileDown aria-hidden="true" />
+                          Download Word — summary + transcript
+                        </DropdownMenuItem>
+                      )}
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
                 <DialogContent>
                   <DialogHeader>
                     <DialogTitle>Share this meeting</DialogTitle>
@@ -513,14 +559,20 @@ export function MeetingDetailView({ id }: { id: string }) {
                       className={`flex size-9 shrink-0 items-center justify-center rounded-full ${meeting.shareToken ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}
                       aria-hidden="true"
                     >
-                      {meeting.shareToken ? <Globe className="size-4" /> : <Lock className="size-4" />}
+                      {meeting.shareToken ? (
+                        <Globe className="size-4" />
+                      ) : (
+                        <Lock className="size-4" />
+                      )}
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium">
                         {meeting.shareToken ? "Anyone with the link" : "Only you"}
                       </p>
                       <p className="text-muted-foreground text-xs">
-                        {meeting.shareToken ? "Can view the sections below." : "This meeting is private."}
+                        {meeting.shareToken
+                          ? "Can view the sections below."
+                          : "This meeting is private."}
                       </p>
                     </div>
                     <Button
@@ -557,7 +609,10 @@ export function MeetingDetailView({ id }: { id: string }) {
                             ["transcript", "shareTranscript", "Transcript"],
                           ] as const
                         ).map(([key, field, label]) => (
-                          <label key={key} className="flex cursor-pointer items-center gap-2.5 text-sm">
+                          <label
+                            key={key}
+                            className="flex cursor-pointer items-center gap-2.5 text-sm"
+                          >
                             <input
                               type="checkbox"
                               checked={meeting[field]}
@@ -645,7 +700,9 @@ export function MeetingDetailView({ id }: { id: string }) {
               }
               transcribed={transcribed}
             />
-            <p className="text-muted-foreground mt-2 text-xs">Estimated from the recording length.</p>
+            <p className="text-muted-foreground mt-2 text-xs">
+              Estimated from the recording length.
+            </p>
             <p className="text-muted-foreground mt-4 max-w-prose text-sm leading-6">
               {transcribed
                 ? "The transcript is ready."
@@ -757,36 +814,19 @@ export function MeetingDetailView({ id }: { id: string }) {
             </div>
             <div className="flex flex-wrap gap-2">
               {isAdmin && meeting.status === "ready" && (
-                <Button variant="outline" size="sm" onClick={resummarize} disabled={saving || processing}>
-                  {saving ? <Loader2 className="animate-spin" aria-hidden="true" /> : <RotateCcw aria-hidden="true" />}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={resummarize}
+                  disabled={saving || processing}
+                >
+                  {saving ? (
+                    <Loader2 className="animate-spin" aria-hidden="true" />
+                  ) : (
+                    <RotateCcw aria-hidden="true" />
+                  )}
                   Regenerate summary
                 </Button>
-              )}
-              {summary && (
-                <Button variant="outline" size="sm" onClick={copySummary}>
-                  {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
-                  {copied ? "Copied" : "Copy for Notion / Docs"}
-                </Button>
-              )}
-              {summary && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" disabled={exporting}>
-                      {exporting ? <Loader2 className="animate-spin" aria-hidden="true" /> : <FileDown aria-hidden="true" />}
-                      Download Word
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="rounded-xl p-1.5">
-                    <DropdownMenuItem className="rounded-lg px-2 py-2" onSelect={() => void downloadWord(false)}>
-                      Summary only
-                    </DropdownMenuItem>
-                    {segments.length > 0 && (
-                      <DropdownMenuItem className="rounded-lg px-2 py-2" onSelect={() => void downloadWord(true)}>
-                        Summary + transcript
-                      </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
               )}
             </div>
           </div>
@@ -804,7 +844,10 @@ export function MeetingDetailView({ id }: { id: string }) {
         )}
 
         {labels.length > 0 && meeting.status !== "recording" && (
-          <section className="animate-fade-up mb-8 flex flex-col gap-3" aria-labelledby="speakers-heading">
+          <section
+            className="animate-fade-up mb-8 flex flex-col gap-3"
+            aria-labelledby="speakers-heading"
+          >
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
               <h2 id="speakers-heading" className="font-display text-2xl">
                 Speakers
@@ -818,7 +861,10 @@ export function MeetingDetailView({ id }: { id: string }) {
                 const name = meeting.speakerNames[label];
                 const suggestion = !name && meeting.speakerSuggestions[label];
                 return (
-                  <li key={label} className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-2 py-2">
+                  <li
+                    key={label}
+                    className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-2 py-2"
+                  >
                     {speaker === label ? (
                       <form
                         className="animate-scale-in flex min-w-0 flex-1 items-center gap-2"
@@ -843,11 +889,20 @@ export function MeetingDetailView({ id }: { id: string }) {
                           type="submit"
                           size="icon"
                           disabled={speakerSaving}
-                          aria-label={speakerName.trim() ? `Save name for ${label}` : `Clear name for ${label}`}
+                          aria-label={
+                            speakerName.trim()
+                              ? `Save name for ${label}`
+                              : `Clear name for ${label}`
+                          }
                         >
                           {speakerSaving ? <Loader2 className="animate-spin" /> : <Check />}
                         </Button>
-                        <Button type="button" variant="ghost" size="sm" onClick={() => setSpeaker(null)}>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSpeaker(null)}
+                        >
                           Cancel
                         </Button>
                       </form>
