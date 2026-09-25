@@ -45,6 +45,9 @@ export function MeetingRecorder({
 }) {
   const [title, setTitle] = useState("");
   const [mode, setMode] = useState("tab");
+  // getDisplayMedia (tab/screen capture) isn't implemented on mobile browsers (e.g. Chrome on
+  // Android), so calling it there throws a raw "not a function" error instead of a usable message.
+  const [tabCaptureSupported, setTabCaptureSupported] = useState(true);
   const [phase, setPhase] = useState<"idle" | "starting" | "recording" | "saving" | "stopped">(
     "idle"
   );
@@ -67,6 +70,17 @@ export function MeetingRecorder({
   const [dragging, setDragging] = useState(false);
   // Kept after a failed upload so Retry resumes the same meeting instead of creating another.
   const [fileJob, setFileJob] = useState<{ id: string; chunks: Int16Array[] } | null>(null);
+
+  useEffect(() => {
+    // One-time capability probe: getDisplayMedia is undefined during SSR and on browsers
+    // (mobile Chrome/Safari) that don't implement tab/screen capture at all.
+    const supported = !!navigator.mediaDevices?.getDisplayMedia;
+    if (!supported) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setTabCaptureSupported(false);
+      setMode("mic");
+    }
+  }, []);
 
   useEffect(() => {
     mounted.current = true;
@@ -189,6 +203,10 @@ export function MeetingRecorder({
         throw new Error("Open Breeze in Chrome or Edge on desktop using HTTPS or localhost.");
       // Must be invoked directly from the click, before any other awaited operation.
       if (mode === "tab") {
+        if (!navigator.mediaDevices.getDisplayMedia)
+          throw new Error(
+            "Sharing a browser tab isn’t supported on this device (common on phones). Choose “Microphone only”, or record from a desktop browser instead."
+          );
         const display = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
         streams.push(display);
         if (!display.getAudioTracks().length)
@@ -428,12 +446,15 @@ export function MeetingRecorder({
         <fieldset disabled={busy} className="mt-7 disabled:opacity-60">
           <legend className="mb-3 text-sm font-medium">What would you like to record?</legend>
           <div className="grid gap-2.5 sm:grid-cols-2">
-            <label className="group has-[:checked]:border-primary has-[:checked]:bg-primary/5 hover:bg-accent/40 focus-within:ring-ring/50 flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-colors focus-within:ring-[3px] has-[:disabled]:cursor-not-allowed">
+            <label
+              className={`group has-[:checked]:border-primary has-[:checked]:bg-primary/5 hover:bg-accent/40 focus-within:ring-ring/50 flex items-start gap-3 rounded-xl border p-4 transition-colors focus-within:ring-[3px] has-[:disabled]:cursor-not-allowed ${tabCaptureSupported ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}
+            >
               <input
                 type="radio"
                 name="audio-source"
                 value="tab"
                 checked={mode === "tab"}
+                disabled={!tabCaptureSupported}
                 onChange={() => setMode("tab")}
                 className="accent-primary mt-0.5 size-4 shrink-0"
               />
@@ -441,7 +462,9 @@ export function MeetingRecorder({
               <span className="min-w-0 text-sm font-medium">
                 Microphone + meeting tab
                 <span className="text-muted-foreground mt-1 block text-xs leading-relaxed font-normal">
-                  Choose the meeting tab and enable Share tab audio.
+                  {tabCaptureSupported
+                    ? "Choose the meeting tab and enable Share tab audio."
+                    : "Not available on this device — tab sharing needs a desktop browser."}
                 </span>
               </span>
             </label>
