@@ -107,10 +107,11 @@ export const meetings = pgTable("meetings", {
   // In-flight Soniox upload and transcription job; cleared once the transcript is saved or the job fails.
   sonioxFileId: text("soniox_file_id"),
   sonioxTranscriptionId: text("soniox_transcription_id"),
+  // In-flight OneDrive upload session (admin audio archive); a bearer URL, never sent to the client.
+  onedriveUploadUrl: text("onedrive_upload_url"),
   // Public view-only link; NULL = sharing off. Each section is shared independently.
   shareToken: uuid("share_token").unique(),
   shareSummary: boolean("share_summary").default(true).notNull(),
-  shareRecording: boolean("share_recording").default(false).notNull(),
   shareTranscript: boolean("share_transcript").default(false).notNull(),
 }, (table) => [index("meetings_user_created_idx").on(table.userId, table.createdAt)]);
 
@@ -118,7 +119,7 @@ export const meetingChunks = pgTable("meeting_chunks", {
   id: uuid("id").defaultRandom().primaryKey(),
   meetingId: uuid("meeting_id").notNull().references(() => meetings.id, { onDelete: "cascade" }),
   index: integer("chunk_index").notNull(),
-  blobPath: text("blob_path").notNull(),
+  blobPath: text("blob_path"), // NULL = audio no longer on the server (deleted, or archived to the admin's OneDrive)
   sha256: text("sha256").notNull(),
   durationSeconds: doublePrecision("duration_seconds").notNull(),
   segments: jsonb("segments").$type<TranscriptSegment[]>(),

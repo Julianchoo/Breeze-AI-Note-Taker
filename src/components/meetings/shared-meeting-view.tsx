@@ -1,9 +1,6 @@
 "use client";
-import { useRef } from "react";
 import { EyeOff } from "lucide-react";
 import {
-  AudioPlayer,
-  type AudioPlayerHandle,
   relabel,
   SummaryProse,
   timestamp,
@@ -12,11 +9,9 @@ import {
 import type { SharedMeeting } from "@/lib/meeting-types";
 
 /** Read-only public view; the server only sends the sections the owner shared. */
-export function SharedMeetingView({ token, meeting }: { token: string; meeting: SharedMeeting }) {
-  const player = useRef<AudioPlayerHandle>(null);
-  const { chunks, segments } = meeting;
+export function SharedMeetingView({ meeting }: { meeting: SharedMeeting }) {
+  const { segments } = meeting;
   const summary = meeting.summary && relabel(meeting.summary, meeting.labels, meeting.speakerNames);
-  const audio = !!chunks?.length;
   return (
     <div className="glow-bg">
       <div className="mx-auto max-w-4xl px-4 py-10 sm:py-16">
@@ -65,32 +60,16 @@ export function SharedMeetingView({ token, meeting }: { token: string; meeting: 
           </section>
         )}
 
-        {audio && (
-          <AudioPlayer
-            ref={player}
-            chunks={chunks}
-            src={`/api/share/${token}/audio`}
-            noDownload
-            hint={!!segments}
-          />
-        )}
+        {segments && <TranscriptList segments={segments} speakerNames={meeting.speakerNames} />}
 
-        {segments && (
-          <TranscriptList
-            segments={segments}
-            speakerNames={meeting.speakerNames}
-            onSeek={audio ? (seconds) => player.current?.seek(seconds) : undefined}
-          />
-        )}
-
-        {meeting.summary === undefined && !chunks && !segments && (
+        {meeting.summary === undefined && !segments && (
           <div className="border-border/70 animate-fade-up flex flex-col items-center gap-5 rounded-2xl border border-dashed px-6 py-16 text-center sm:py-24">
             <span className="bg-muted flex size-14 items-center justify-center rounded-full">
               <EyeOff className="text-muted-foreground size-6" aria-hidden="true" />
             </span>
             <h2 className="font-display text-2xl sm:text-3xl">Nothing shared yet</h2>
             <p className="text-muted-foreground mx-auto max-w-sm text-sm leading-6">
-              The owner of this meeting has not shared its summary, recording or transcript.
+              The owner of this meeting has not shared its summary or transcript.
             </p>
           </div>
         )}

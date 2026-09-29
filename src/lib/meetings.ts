@@ -1,18 +1,19 @@
 import { createHash, randomUUID } from "node:crypto";
 import { del, get, put } from "@vercel/blob";
-import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { type SQL, and, asc, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { auth } from "./auth";
 import { db } from "./db";
 import { MAX_CHUNKS, type Meeting, type MeetingDetail, type SharedMeeting, type TranscriptSegment } from "./meeting-types";
-import { MeetingError, MAX_WAV_BYTES, chunkIndex, requireSameOrigin, segmentsByChunk, tokensToSegments, validateChunkSequence, wavDuration } from "./meeting-validation";
+import { MeetingError, MAX_WAV_BYTES, chunkIndex, joinedWavHeader, partDataBytes, requireSameOrigin, segmentsByChunk, tokensToSegments, validateChunkSequence, wavDuration } from "./meeting-validation";
+import { archiveName, archiveToOneDrive } from "./onedrive";
 import { SONIOX_USD_PER_HOUR, callCostUsd } from "./openai-pricing";
 import { meetingChunks, meetings, user } from "./schema";
 import { ADMIN_EMAIL } from "./utils";
 
 type Row = Pick<typeof meetings.$inferSelect, keyof Meeting>;
 function visible(row: Row): Meeting {
-  return { id: row.id, title: row.title, status: row.status, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), durationSeconds: row.durationSeconds, expectedChunks: row.expectedChunks, summary: row.summary, detectedLanguage: row.detectedLanguage, error: row.error, costUsd: row.costUsd, speakerNames: row.speakerNames, speakerSuggestions: row.speakerSuggestions, aiContext: row.aiContext, shareToken: row.shareToken, shareSummary: row.shareSummary, shareRecording: row.shareRecording, shareTranscript: row.shareTranscript };
+  return { id: row.id, title: row.title, status: row.status, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), durationSeconds: row.durationSeconds, expectedChunks: row.expectedChunks, summary: row.summary, detectedLanguage: row.detectedLanguage, error: row.error, costUsd: row.costUsd, speakerNames: row.speakerNames, speakerSuggestions: row.speakerSuggestions, aiContext: row.aiContext, shareToken: row.shareToken, shareSummary: row.shareSummary, shareTranscript: row.shareTranscript };
 }
 export async function meetingRoute(request: Request, action: (userId: string) => Promise<Response>) {
   try {
@@ -30,7 +31,7 @@ function routeError(error: unknown) {
   if (error instanceof MeetingError) return Response.json({ error: error.message }, { status: error.status });
   if (error instanceof z.ZodError || error instanceof SyntaxError) return Response.json({ error: "Invalid request." }, { status: 400 });
   // Do not expose provider messages, SQL parameters, audio, transcripts or credentials.
-  return Response.json({ error: "The request could not be completed. Your saved audio is safe; please retry." }, { status: 500 });
+  return Response.json({ error: "The request could not be completed. Please retry." }, { status: 500 });
 }
 function scope(id: string, userId: string) {
   if (!z.uuid().safeParse(id).success) throw new MeetingError("Meeting not found.", 404);
@@ -42,12 +43,16 @@ async function owned(id: string, userId: string) {
   return row;
 }
 export async function listMeetings(userId: string) {
-  return (await db.select({ id: meetings.id, title: meetings.title, status: meetings.status, createdAt: meetings.createdAt, updatedAt: meetings.updatedAt, durationSeconds: meetings.durationSeconds, expectedChunks: meetings.expectedChunks, error: meetings.error, summary: meetings.summary, detectedLanguage: meetings.detectedLanguage, costUsd: meetings.costUsd, speakerNames: meetings.speakerNames, speakerSuggestions: meetings.speakerSuggestions, aiContext: meetings.aiContext, shareToken: meetings.shareToken, shareSummary: meetings.shareSummary, shareRecording: meetings.shareRecording, shareTranscript: meetings.shareTranscript }).from(meetings).where(eq(meetings.userId, userId)).orderBy(desc(meetings.createdAt))).map(visible);
+  return (await db.select({ id: meetings.id, title: meetings.title, status: meetings.status, createdAt: meetings.createdAt, updatedAt: meetings.updatedAt, durationSeconds: meetings.durationSeconds, expectedChunks: meetings.expectedChunks, error: meetings.error, summary: meetings.summary, detectedLanguage: meetings.detectedLanguage, costUsd: meetings.costUsd, speakerNames: meetings.speakerNames, speakerSuggestions: meetings.speakerSuggestions, aiContext: meetings.aiContext, shareToken: meetings.shareToken, shareSummary: meetings.shareSummary, shareTranscript: meetings.shareTranscript }).from(meetings).where(eq(meetings.userId, userId)).orderBy(desc(meetings.createdAt))).map(visible);
 }
 // ponytail: checked before each OpenAI call, so a user can overshoot the limit by one call's cost.
 async function requireBudget(userId: string) {
   const [row] = await db.select({ spent: user.spentUsd, limit: user.costLimitUsd }).from(user).where(eq(user.id, userId));
   if (!row || row.spent >= row.limit) throw new MeetingError("You've reached your AI usage limit. Ask the admin to raise it, then retry.", 403);
+}
+export async function isAdmin(userId: string) {
+  const [owner] = await db.select({ email: user.email, verified: user.emailVerified }).from(user).where(eq(user.id, userId));
+  return owner?.email === ADMIN_EMAIL && owner.verified;
 }
 export async function createMeeting(userId: string, body: unknown) {
   await requireBudget(userId);
@@ -67,7 +72,7 @@ export async function updateMeeting(id: string, userId: string, body: unknown) {
     z.object({ action: z.literal("resummarize") }),
     z.object({ title: z.string().trim().min(1).max(160) }),
     z.object({ speakerNames: z.record(z.string(), z.string().trim().max(60)) }),
-    z.object({ share: z.object({ enabled: z.boolean().optional(), regenerate: z.literal(true).optional(), summary: z.boolean().optional(), recording: z.boolean().optional(), transcript: z.boolean().optional() }) }),
+    z.object({ share: z.object({ enabled: z.boolean().optional(), regenerate: z.literal(true).optional(), summary: z.boolean().optional(), transcript: z.boolean().optional() }) }),
   ]).parse(body);
   return db.transaction(async tx => {
     const [row] = await tx.select().from(meetings).where(scope(id, userId)).for("update");
@@ -77,10 +82,10 @@ export async function updateMeeting(id: string, userId: string, body: unknown) {
       return visible(updated!);
     }
     if ("share" in input) {
-      const { enabled = row.shareToken !== null, regenerate, summary, recording, transcript } = input.share;
+      const { enabled = row.shareToken !== null, regenerate, summary, transcript } = input.share;
       if (regenerate && !enabled) throw new MeetingError("Turn the share link on first.", 409);
       const shareToken = !enabled ? null : regenerate || !row.shareToken ? randomUUID() : row.shareToken;
-      const [updated] = await tx.update(meetings).set({ shareToken, shareSummary: summary, shareRecording: recording, shareTranscript: transcript, updatedAt: new Date() }).where(eq(meetings.id, id)).returning();
+      const [updated] = await tx.update(meetings).set({ shareToken, shareSummary: summary, shareTranscript: transcript, updatedAt: new Date() }).where(eq(meetings.id, id)).returning();
       return visible(updated!);
     }
     if ("speakerNames" in input) {
@@ -95,8 +100,7 @@ export async function updateMeeting(id: string, userId: string, body: unknown) {
       return visible(updated!);
     }
     if (input.action === "resummarize") {
-      const [owner] = await tx.select({ email: user.email, verified: user.emailVerified }).from(user).where(eq(user.id, userId));
-      if (owner?.email !== ADMIN_EMAIL || !owner.verified) throw new MeetingError("Meeting not found.", 404);
+      if (!(await isAdmin(userId))) throw new MeetingError("Meeting not found.", 404);
       if (row.status !== "ready") throw new MeetingError("Only finished meetings can be summarized again.", 409);
       // All chunks already have segments, so processMeeting goes straight to the summary step.
       const [updated] = await tx.update(meetings).set({ status: "processing", error: null, updatedAt: new Date() }).where(eq(meetings.id, id)).returning();
@@ -146,14 +150,11 @@ export async function uploadChunk(id: string, userId: string, request: Request) 
     return { index, durationSeconds };
   });
 }
-async function audioBytes(path: string) {
-  const blob = await get(path, { access: "private" });
+// Audio exists on the server only until the transcript is saved (see releaseAudio).
+async function audioBytes(path: string | null) {
+  const blob = path && await get(path, { access: "private" });
   if (!blob || blob.statusCode !== 200) throw new MeetingError("Saved audio could not be loaded. Please retry.", 503);
   return Buffer.from(await new Response(blob.stream).arrayBuffer());
-}
-export async function getAudio(id: string, userId: string, indexValue: string, request: Request) {
-  await owned(id, userId);
-  return serveAudio(id, indexValue, request);
 }
 async function shared(token: string) {
   if (!z.uuid().safeParse(token).success) throw new MeetingError("Meeting not found.", 404);
@@ -164,31 +165,10 @@ async function shared(token: string) {
 // Only the shared sections leave the server.
 export async function getSharedMeeting(token: string): Promise<SharedMeeting> {
   const row = await shared(token);
-  const chunks = await db.select({ index: meetingChunks.index, durationSeconds: meetingChunks.durationSeconds, segments: meetingChunks.segments }).from(meetingChunks).where(eq(meetingChunks.meetingId, row.id)).orderBy(asc(meetingChunks.index));
+  const chunks = await db.select({ segments: meetingChunks.segments }).from(meetingChunks).where(eq(meetingChunks.meetingId, row.id)).orderBy(asc(meetingChunks.index));
   const segments = chunks.flatMap(c => c.segments ?? []);
   return { title: row.title, createdAt: row.createdAt.toISOString(), durationSeconds: row.durationSeconds, labels: [...new Set(segments.map(s => s.speaker))], speakerNames: row.speakerNames,
-    ...(row.shareSummary && { summary: row.summary }), ...(row.shareRecording && { chunks: chunks.map(c => ({ index: c.index, durationSeconds: c.durationSeconds })) }), ...(row.shareTranscript && { segments }) };
-}
-export async function getSharedAudio(token: string, indexValue: string, request: Request) {
-  const row = await shared(token);
-  if (!row.shareRecording) throw new MeetingError("Audio not found.", 404);
-  return serveAudio(row.id, indexValue, request);
-}
-async function serveAudio(id: string, indexValue: string, request: Request) {
-  const index = chunkIndex(indexValue);
-  const [chunk] = await db.select().from(meetingChunks).where(and(eq(meetingChunks.meetingId, id), eq(meetingChunks.index, index)));
-  if (!chunk) throw new MeetingError("Audio not found.", 404);
-  const data = await audioBytes(chunk.blobPath);
-  const headers = { "Content-Type": "audio/wav", "Cache-Control": "private, no-store", "Accept-Ranges": "bytes", "Content-Disposition": `inline; filename="meeting-${index + 1}.wav"` };
-  const range = request.headers.get("range");
-  if (range) {
-    const match = /^bytes=(\d+)-(\d*)$/.exec(range);
-    if (!match) return new Response(null, { status: 416, headers: { ...headers, "Content-Range": `bytes */${data.length}` } });
-    const start = Number(match[1]), end = Math.min(match[2] ? Number(match[2]) : data.length - 1, data.length - 1);
-    if (start > end) return new Response(null, { status: 416, headers: { ...headers, "Content-Range": `bytes */${data.length}` } });
-    return new Response(data.subarray(start, end + 1), { status: 206, headers: { ...headers, "Content-Range": `bytes ${start}-${end}/${data.length}`, "Content-Length": String(end - start + 1) } });
-  }
-  return new Response(data, { headers: { ...headers, "Content-Length": String(data.length) } });
+    ...(row.shareSummary && { summary: row.summary }), ...(row.shareTranscript && { segments }) };
 }
 export async function deleteMeeting(id: string, userId: string) {
   await db.transaction(async tx => {
@@ -196,7 +176,8 @@ export async function deleteMeeting(id: string, userId: string) {
     if (!row) throw new MeetingError("Meeting not found.", 404);
     if (row.leaseUntil && row.leaseUntil > new Date()) throw new MeetingError("Processing is active. Try deleting again in a few minutes.", 409);
     const chunks = await tx.select().from(meetingChunks).where(eq(meetingChunks.meetingId, id));
-    if (chunks.length) await del(chunks.map(c => c.blobPath));
+    const paths = chunks.flatMap(c => c.blobPath ?? []);
+    if (paths.length) await del(paths);
     await tx.delete(meetings).where(eq(meetings.id, id));
   });
 }
@@ -245,7 +226,7 @@ export async function processMeeting(id: string, userId: string) {
         // ponytail: the whole meeting (~460 MB for 4 h) is joined in memory; stream the upload if memory or time becomes a problem.
         const wavs = await Promise.all(chunks.map(c => audioBytes(c.blobPath)));
         const size = wavs.reduce((n, w) => n + w.length - 44, 0);
-        const header = Buffer.from(wavs[0]!.subarray(0, 44)); header.writeUInt32LE(36 + size, 4); header.writeUInt32LE(size, 40);
+        const header = joinedWavHeader(wavs[0]!, size);
         const form = new FormData();
         form.append("file", new Blob([header, ...wavs.map(w => w.subarray(44))], { type: "audio/wav" }), "meeting.wav");
         fileId = z.object({ id: z.string() }).parse(await soniox("files", { method: "POST", body: form })).id;
@@ -277,6 +258,15 @@ export async function processMeeting(id: string, userId: string) {
       if (parts) await forgetSoniox(fileId, transcriptionId);
       // After the transcript is saved, one more call writes the summary.
       return { meeting: visible(await owned(id, userId)), remaining: parts ? 1 : pending, busy: !parts };
+    }
+    // Transcript saved: the audio leaves the server. The admin's is archived to OneDrive first, across as many calls as the upload needs.
+    if (chunks.some(c => c.blobPath)) {
+      const admin = await isAdmin(userId);
+      const released = await releaseAudio(row, chunks, admin, fenced, Date.now() + 200_000);
+      if (admin || !released) {
+        await db.update(meetings).set({ leaseToken: null, leaseUntil: null, failures: 0, error: null, updatedAt: new Date() }).where(fenced);
+        return { meeting: visible(await owned(id, userId)), remaining: 1 };
+      }
     }
     let summary: string | null = row.summary, detectedLanguage = row.detectedLanguage, aiTitle: string | undefined, speakerSuggestions = row.speakerSuggestions;
     const all = chunks.flatMap(c => c.segments ?? []), labels = new Set(all.map(s => s.speaker));
@@ -313,9 +303,28 @@ export async function processMeeting(id: string, userId: string) {
     });
     return { meeting: visible(await owned(id, userId)), remaining: 0 };
   } catch (error) {
-    const message = error instanceof MeetingError ? error.message : "Processing failed. Your audio is saved. Retry to continue.";
+    const message = error instanceof MeetingError ? error.message : "Processing failed. Your progress is saved; retry to continue.";
     await db.update(meetings).set({ status: "error", error: message, failures: row.failures + 1, leaseToken: null, leaseUntil: null, updatedAt: new Date(), ...(cost > 0 && { costUsd: sql`coalesce(${meetings.costUsd}, 0) + ${cost}` }) }).where(and(scope(id, userId), eq(meetings.leaseToken, token)));
     if (cost > 0) await db.update(user).set({ spentUsd: sql`${user.spentUsd} + ${cost}` }).where(eq(user.id, userId));
     throw new MeetingError(message, error instanceof MeetingError ? error.status : 502);
   }
+}
+/**
+ * Removes a transcribed meeting's audio from Blob; the admin's is first archived to OneDrive as one WAV.
+ * `fence` guards every write (the processing lease). Returns false when `deadline` hit before the upload finished.
+ */
+export async function releaseAudio(row: typeof meetings.$inferSelect, chunks: (typeof meetingChunks.$inferSelect)[], admin: boolean, fence: SQL | undefined, deadline = Infinity) {
+  const stored = chunks.filter(c => c.blobPath);
+  if (!stored.length) return true;
+  const lost = () => new MeetingError("Processing was resumed elsewhere. Refresh to continue.", 409);
+  if (admin && !(await archiveToOneDrive({ userId: row.userId, name: archiveName(row.createdAt, row.title), parts: stored.map(c => ({ path: c.blobPath!, dataBytes: partDataBytes(c.durationSeconds) })), read: audioBytes, uploadUrl: row.onedriveUploadUrl, deadline,
+    save: async url => { if (!(await db.update(meetings).set({ onedriveUploadUrl: url }).where(fence).returning({ id: meetings.id })).length) throw lost(); } }))) return false;
+  await db.transaction(async tx => {
+    if (!(await tx.select({ id: meetings.id }).from(meetings).where(fence).for("update")).length) throw lost();
+    await tx.update(meetingChunks).set({ blobPath: null }).where(inArray(meetingChunks.id, stored.map(c => c.id)));
+    await tx.update(meetings).set({ onedriveUploadUrl: null }).where(eq(meetings.id, row.id));
+    // Inside the transaction: a failed delete rolls the paths back, so a retry deletes again (del is idempotent).
+    await del(stored.map(c => c.blobPath!));
+  });
+  return true;
 }

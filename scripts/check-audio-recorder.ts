@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import { encodeWav } from "../src/lib/audio-recorder";
+import { mergeWav } from "../src/lib/recording-cache";
 
 const source = readFileSync("public/audio-capture-worklet.js", "utf8");
 type Processor = {
@@ -67,8 +68,17 @@ async function checkWav() {
   assert.equal(view.getInt16(44, true), -32768);
   assert.equal(view.getInt16(48, true), 32767);
   assert.equal(encodeWav(new Int16Array(16000 * 120)).size, 3840044);
+  const merged = await mergeWav([
+    encodeWav(new Int16Array([1, 2])),
+    encodeWav(new Int16Array([3])),
+  ]).then((blob) => blob.arrayBuffer());
+  const joined = new DataView(merged);
+  assert.equal(merged.byteLength, 44 + 6);
+  assert.equal(joined.getUint32(4, true), 36 + 6);
+  assert.equal(joined.getUint32(40, true), 6);
+  assert.deepEqual([...new Int16Array(merged, 44)], [1, 2, 3]);
   console.log(
-    "Audio recorder checks passed: continuous resampling, chunk boundary, final flush, four-hour limit, WAV encoding."
+    "Audio recorder checks passed: continuous resampling, chunk boundary, final flush, four-hour limit, WAV encoding, WAV merge."
   );
 }
 void checkWav();

@@ -27,6 +27,23 @@ export function wavDuration(wav: Buffer) {
   }
   return (wav.length - 44) / 32000;
 }
+// A meeting's parts joined into one WAV: part 0's header with the total size, then every part's PCM after its own 44-byte header.
+export function joinedWavHeader(first: Buffer, dataBytes: number) {
+  const header = Buffer.from(first.subarray(0, 44)); header.writeUInt32LE(36 + dataBytes, 4); header.writeUInt32LE(dataBytes, 40);
+  return header;
+}
+// Canonical parts (see wavDuration) hold exactly duration × 32000 PCM bytes, so the joined layout is known without downloading.
+export const partDataBytes = (durationSeconds: number) => Math.round(durationSeconds * 32000);
+/** Byte ranges of the part files that make up bytes [start, end) of the joined WAV; part -1 is the joined header. */
+export function joinedWavPieces(dataBytes: number[], start: number, end: number) {
+  const pieces: { part: number; from: number; to: number }[] = [];
+  for (let part = -1, at = 0; part < dataBytes.length && at < end; part++) {
+    const length = part < 0 ? 44 : dataBytes[part]!, skip = part < 0 ? 0 : 44, from = Math.max(start, at), to = Math.min(end, at + length);
+    if (from < to) pieces.push({ part, from: from - at + skip, to: to - at + skip });
+    at += length;
+  }
+  return pieces;
+}
 export function validateChunkSequence(chunks: { index: number; durationSeconds: number }[], expected: number) {
   if (!Number.isInteger(expected) || expected < 1 || expected > MAX_CHUNKS || chunks.length !== expected ||
       chunks.some((chunk, index) => chunk.index !== index || (index < expected - 1 && (chunk.durationSeconds < MIN_CHUNK_SECONDS || chunk.durationSeconds > CHUNK_SECONDS)))) {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { sliceChunks } from "../src/lib/audio-file";
-import { chunkIndex, estimateProgress, requireSameOrigin, segmentsByChunk, tokensToSegments, validateChunkSequence, wavDuration } from "../src/lib/meeting-validation";
+import { chunkIndex, estimateProgress, joinedWavHeader, joinedWavPieces, partDataBytes, requireSameOrigin, segmentsByChunk, tokensToSegments, validateChunkSequence, wavDuration } from "../src/lib/meeting-validation";
 import { callCostUsd } from "../src/lib/openai-pricing";
 
 function wav(seconds: number) {
@@ -71,4 +71,19 @@ for (const d of [0, 60, 3600, 14_400]) {
     assert.ok(previous <= (transcribed ? 99 : w1));
   }
 }
-console.log("Meeting WAV, four-hour bounds, complete 105–120 s chunk sequence, CSRF, OpenAI cost, Soniox segment and progress estimate checks passed.");
+// OneDrive archive: fragments of the joined WAV map back to the right bytes of each part, at any fragment boundary.
+const partWavs = [wav(2), wav(1), wav(0.5)].map((w, i) => { w.fill(i + 1, 44); return w; });
+const pcm = partWavs.reduce((n, w) => n + w.length - 44, 0);
+const joined = Buffer.concat([joinedWavHeader(partWavs[0]!, pcm), ...partWavs.map(w => w.subarray(44))]);
+assert.equal(wavDuration(joined), 3.5);
+assert.deepEqual(partWavs.map(w => partDataBytes(wavDuration(w))), partWavs.map(w => w.length - 44));
+assert.equal(partDataBytes(105.123456), 3_363_951);
+for (const step of [1, 43, 44, 45, 1000, 31_999, 64_000, joined.length]) {
+  const pieces: Buffer[] = [];
+  for (let start = 0; start < joined.length; start += step)
+    for (const { part, from, to } of joinedWavPieces(partWavs.map(w => w.length - 44), start, Math.min(start + step, joined.length)))
+      pieces.push(part < 0 ? joinedWavHeader(partWavs[0]!, pcm).subarray(from, to) : partWavs[part]!.subarray(from, to));
+  assert.ok(Buffer.concat(pieces).equals(joined), `step ${step}`);
+}
+assert.deepEqual(joinedWavPieces([100, 50], 140, 200), [{ part: 0, from: 140, to: 144 }, { part: 1, from: 44, to: 94 }]);
+console.log("Meeting WAV, four-hour bounds, complete 105–120 s chunk sequence, CSRF, OpenAI cost, Soniox segment, progress estimate and OneDrive fragment checks passed.");

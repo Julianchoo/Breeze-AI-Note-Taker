@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   Check,
   Copy,
+  Download,
   FileDown,
   Globe,
   Loader2,
@@ -17,14 +18,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { toast } from "sonner";
-import {
-  AudioPlayer,
-  type AudioPlayerHandle,
-  relabel,
-  SummaryProse,
-  timestamp,
-  TranscriptList,
-} from "@/components/meetings/meeting-sections";
+import { relabel, SummaryProse, timestamp, TranscriptList } from "@/components/meetings/meeting-sections";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -50,6 +44,12 @@ import { useSession } from "@/lib/auth-client";
 import { downloadMeetingDocx } from "@/lib/meeting-docx";
 import { type Meeting, type MeetingDetail } from "@/lib/meeting-types";
 import { estimateProgress } from "@/lib/meeting-validation";
+import {
+  type CachedRecording,
+  deleteRecording,
+  findFinishedRecording,
+  recordingWav,
+} from "@/lib/recording-cache";
 import { ADMIN_EMAIL, usd } from "@/lib/utils";
 
 /* Ticks only while mounted; keyed by phase so the elapsed time restarts when transcription hands off to the summary. */
@@ -99,7 +99,8 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
 export function MeetingDetailView({ id }: { id: string }) {
   const router = useRouter();
   // Visibility only — the API re-checks the admin on the server.
-  const isAdmin = useSession().data?.user.email === ADMIN_EMAIL;
+  const user = useSession().data?.user;
+  const isAdmin = user?.email === ADMIN_EMAIL;
   const [detail, setDetail] = useState<MeetingDetail | null>(null);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
@@ -117,8 +118,24 @@ export function MeetingDetailView({ id }: { id: string }) {
   const [speakerSaving, setSpeakerSaving] = useState(false);
   const [shareSaving, setShareSaving] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
-  const player = useRef<AudioPlayerHandle>(null);
+  /* The finished recording kept in this browser; the server deletes its audio after transcription. */
+  const [localAudio, setLocalAudio] = useState<CachedRecording | null>(null);
+  const [audioExporting, setAudioExporting] = useState(false);
   const endpoint = `/api/meetings/${id}`;
+  const userId = user?.id;
+
+  useEffect(() => {
+    if (!userId) return;
+    let live = true;
+    findFinishedRecording(id, userId)
+      .then((recording) => live && setLocalAudio(recording ?? null))
+      .catch(() => {
+        /* No browser storage: there is simply no local copy to offer. */
+      });
+    return () => {
+      live = false;
+    };
+  }, [id, userId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -236,7 +253,6 @@ export function MeetingDetailView({ id }: { id: string }) {
     enabled?: boolean;
     regenerate?: true;
     summary?: boolean;
-    recording?: boolean;
     transcript?: boolean;
   }) {
     setShareSaving(true);
@@ -257,6 +273,8 @@ export function MeetingDetailView({ id }: { id: string }) {
     setDeleting(true);
     try {
       await request(endpoint, { method: "DELETE" });
+      // Best effort: a leftover local copy only costs this device some storage.
+      if (userId) await deleteRecording(userId, id).catch(() => {});
       router.replace("/meetings");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not delete meeting.");
@@ -371,6 +389,29 @@ export function MeetingDetailView({ id }: { id: string }) {
     } finally {
       setExporting(false);
     }
+  }
+  async function downloadAudio() {
+    if (!localAudio) return;
+    setAudioExporting(true);
+    try {
+      const url = URL.createObjectURL(await recordingWav(localAudio));
+      const link = document.createElement("a");
+      link.href = url;
+      // Local date as YYYY-MM-DD; the title is stripped of characters Windows/macOS reject in filenames.
+      const name = meeting.title.replace(/[\\/:*?"<>|]/g, "").replace(/[.\s]+$/, "").trim();
+      link.download = `${new Date(meeting.createdAt).toLocaleDateString("en-CA")} ${name || "Meeting"}.wav`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch {
+      toast.error("Could not create the audio file.");
+      return;
+    } finally {
+      setAudioExporting(false);
+    }
+    // The file is now on the user's device, so the browser copy is no longer needed.
+    await deleteRecording(localAudio.userId, localAudio.id).catch(() => {});
+    setLocalAudio(null);
+    toast.success("Audio downloaded. The copy kept in this browser was removed.");
   }
   // Rendered only after the client fetch, so `location` is always defined here.
   const shareUrl = meeting.shareToken && `${location.origin}/share/${meeting.shareToken}`;
@@ -544,6 +585,19 @@ export function MeetingDetailView({ id }: { id: string }) {
                       )}
                     </>
                   )}
+                  {localAudio && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="rounded-lg px-2 py-2"
+                        disabled={audioExporting}
+                        onSelect={() => void downloadAudio()}
+                      >
+                        <Download aria-hidden="true" />
+                        Download audio (WAV)
+                      </DropdownMenuItem>
+                    </>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
               <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
@@ -605,7 +659,6 @@ export function MeetingDetailView({ id }: { id: string }) {
                         {(
                           [
                             ["summary", "shareSummary", "AI summary"],
-                            ["recording", "shareRecording", "Recording (listen only)"],
                             ["transcript", "shareTranscript", "Transcript"],
                           ] as const
                         ).map(([key, field, label]) => (
@@ -656,8 +709,8 @@ export function MeetingDetailView({ id }: { id: string }) {
                   <DialogHeader>
                     <DialogTitle>Delete this meeting?</DialogTitle>
                     <DialogDescription>
-                      This permanently deletes the summary, transcript, and saved audio. This cannot
-                      be undone.
+                      This permanently deletes the summary, the transcript, and any audio still on our
+                      servers or in this browser. This cannot be undone.
                     </DialogDescription>
                   </DialogHeader>
                   <DialogFooter>
@@ -721,7 +774,7 @@ export function MeetingDetailView({ id }: { id: string }) {
               <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
               {error ||
                 meeting.error ||
-                "We could not finish your notes. Your saved audio is still safe."}
+                "We could not finish your notes. Try again to pick up where it stopped."}
             </p>
             <Button
               variant="outline"
@@ -740,7 +793,7 @@ export function MeetingDetailView({ id }: { id: string }) {
             <h2 className="font-display text-2xl">Finish a saved recording</h2>
             <p className="text-muted-foreground max-w-prose text-sm leading-6">
               If recording is still open in another tab, finish it there. If it was interrupted, you
-              can prepare notes from the {chunks.length} saved audio{" "}
+              can prepare notes from the {chunks.length} uploaded audio{" "}
               {chunks.length === 1 ? "part" : "parts"}. Unsaved audio cannot be recovered here.
             </p>
             <Button disabled={saving || chunks.length === 0} onClick={recover}>
@@ -759,7 +812,8 @@ export function MeetingDetailView({ id }: { id: string }) {
               Anything the AI should know?
             </h2>
             <p className="text-muted-foreground mt-3 max-w-prose text-sm leading-6">
-              Your recording is saved. Optionally tell the AI what to focus on, who was there, or
+              Your recording is uploaded; our copy is deleted once it is transcribed. Optionally
+              tell the AI what to focus on, who was there, or
               which questions the summary should answer. It only uses what was actually said.
             </p>
             <form
@@ -838,10 +892,6 @@ export function MeetingDetailView({ id }: { id: string }) {
             </p>
           )}
         </section>
-
-        {chunks.length > 0 && (
-          <AudioPlayer ref={player} chunks={chunks} src={`${endpoint}/audio`} />
-        )}
 
         {labels.length > 0 && meeting.status !== "recording" && (
           <section
@@ -954,7 +1004,6 @@ export function MeetingDetailView({ id }: { id: string }) {
         <TranscriptList
           segments={segments}
           speakerNames={meeting.speakerNames}
-          onSeek={(seconds) => player.current?.seek(seconds)}
           note="Speaker labels distinguish voices across the whole recording; rename speakers above to show their names. Older meetings may label speakers per audio part."
         />
       </div>

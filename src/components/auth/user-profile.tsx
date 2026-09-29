@@ -1,7 +1,8 @@
 "use client";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LogOut, NotebookPen, ShieldCheck } from "lucide-react";
+import { Check, Cloud, LogOut, NotebookPen, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -15,11 +16,44 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useSession, signOut } from "@/lib/auth-client";
+import { authClient, useSession, signOut } from "@/lib/auth-client";
 import { ADMIN_EMAIL } from "@/lib/utils";
 export function UserProfile() {
   const { data: session, isPending } = useSession();
   const router = useRouter();
+  const isAdmin = session?.user.email === ADMIN_EMAIL;
+  // null while unknown (or the check failed): the OneDrive item stays hidden.
+  const [oneDrive, setOneDrive] = useState<boolean | null>(null);
+  const folderRequested = useRef(false);
+  useEffect(() => {
+    // Only the admin archives audio to OneDrive; the API 404s for everyone else.
+    if (!isAdmin) return;
+    const url = new URL(location.href);
+    if (url.searchParams.get("onedrive") === "connected") {
+      // Back from linking Microsoft: create the "Audios Breeze" folder once, then tidy the URL.
+      if (folderRequested.current) return;
+      folderRequested.current = true;
+      url.searchParams.delete("onedrive");
+      router.replace(url.pathname + url.search + url.hash);
+      void fetch("/api/onedrive", { method: "POST" })
+        .then(async (response) => {
+          const data = await response.json().catch(() => null);
+          if (!response.ok || data?.connected !== true)
+            throw new Error(typeof data?.error === "string" ? data.error : "");
+          setOneDrive(true);
+          toast.success("OneDrive connected. Audio is archived to “Audios Breeze”.");
+        })
+        .catch((error: Error) => {
+          setOneDrive(false);
+          toast.error(error.message || "Could not set up OneDrive. Please try connecting again.");
+        });
+      return;
+    }
+    void fetch("/api/onedrive")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => setOneDrive(typeof data?.connected === "boolean" ? data.connected : null))
+      .catch(() => setOneDrive(null));
+  }, [isAdmin, router]);
   if (isPending) return <Skeleton className="size-9 rounded-full" />;
   if (!session)
     return (
@@ -36,6 +70,17 @@ export function UserProfile() {
     } catch {
       toast.error("Could not sign out. Please try again.");
     }
+  }
+  async function connectOneDrive() {
+    const result = await authClient
+      .linkSocial({
+        provider: "microsoft",
+        callbackURL: `${location.pathname}?onedrive=connected`,
+      })
+      .catch(() => null);
+    // On success the browser is already redirecting to Microsoft.
+    if (!result || result.error)
+      toast.error("Could not start connecting OneDrive. Please try again.");
   }
   const initial = (session.user.name[0] || "B").toUpperCase();
   // The Google avatar may be absent; the initial is always the fallback.
@@ -80,12 +125,24 @@ export function UserProfile() {
             </Link>
           </DropdownMenuItem>
           {/* Visibility only — /admin re-checks the session on the server. */}
-          {session.user.email === ADMIN_EMAIL && (
+          {isAdmin && (
             <DropdownMenuItem asChild className="rounded-lg px-2 py-2">
               <Link href="/admin">
                 <ShieldCheck />
                 Admin
               </Link>
+            </DropdownMenuItem>
+          )}
+          {isAdmin && oneDrive === false && (
+            <DropdownMenuItem onClick={connectOneDrive} className="rounded-lg px-2 py-2">
+              <Cloud />
+              Connect OneDrive
+            </DropdownMenuItem>
+          )}
+          {isAdmin && oneDrive === true && (
+            <DropdownMenuItem disabled className="rounded-lg px-2 py-2">
+              <Check />
+              OneDrive connected
             </DropdownMenuItem>
           )}
           <DropdownMenuItem onClick={leave} className="rounded-lg px-2 py-2">

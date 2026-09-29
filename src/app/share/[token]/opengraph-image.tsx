@@ -11,8 +11,8 @@ export default async function Image({ params }: { params: Promise<{ token: strin
   const title = meeting.title.length > 90 ? `${meeting.title.slice(0, 89)}…` : meeting.title;
   const date = new Date(meeting.createdAt).toLocaleDateString("en-US", { dateStyle: "long" });
   const minutes = `${Math.max(1, Math.round(meeting.durationSeconds / 60))} min`;
-  const sections = [meeting.summary && "AI summary", meeting.chunks && "Recording", meeting.segments && "Transcript"].filter((s): s is string => !!s);
-  const fonts = await ogFonts(title, `SHARED MEETING NOTES ${date} ${minutes} AI summary Recording Transcript ·`);
+  const sections = [meeting.summary && "AI summary", meeting.segments && "Transcript"].filter((s): s is string => !!s);
+  const fonts = await ogFonts(title, `SHARED MEETING NOTES ${date} ${minutes} AI summary Transcript ·`);
   return new ImageResponse(
     (
       <div style={ogFrame}>

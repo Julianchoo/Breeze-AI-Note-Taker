@@ -17,9 +17,9 @@ import { decodeAudioFile, sliceChunks } from "@/lib/audio-file";
 import { AUDIO_SAMPLE_RATE, captureAudio, encodeWav } from "@/lib/audio-recorder";
 import {
   cacheChunk,
-  deleteChunk,
   deleteRecording,
   listRecordings,
+  markChunkUploaded,
   readChunk,
   saveRecording,
   type CachedRecording,
@@ -133,7 +133,8 @@ export function MeetingRecorder({
     const work = async () => {
       for (let index = 0; index < recording.chunks; index++) {
         const chunk = await readChunk(userId, recording.id, index);
-        if (!chunk) continue;
+        // Chunks are kept after upload as the local copy; skip the ones the server already confirmed.
+        if (!chunk || chunk.uploaded) continue;
         setUploadStatus(`Saving audio part ${index + 1}…`);
         const receipt = await checked(
           await fetch(`/api/meetings/${recording.id}/chunks`, {
@@ -145,9 +146,9 @@ export function MeetingRecorder({
         );
         if (receipt?.index !== index || typeof receipt?.durationSeconds !== "number")
           throw new Error("Audio upload was not confirmed. Your local copy has been kept.");
-        await deleteChunk(userId, recording.id, index);
+        await markChunkUploaded(chunk);
       }
-      setUploadStatus("Audio saved to your private storage.");
+      setUploadStatus("Audio uploaded for transcription.");
     };
     uploading.current = work();
     try {
@@ -179,7 +180,9 @@ export function MeetingRecorder({
           }),
         })
       );
-      await deleteRecording(recording.id);
+      // Kept on this device so the audio can be downloaded from the meeting page.
+      recording.finished = true;
+      await saveRecording(recording);
       active.current = null;
       if (mounted.current) onFinished(recording.id);
     } catch (cause) {
@@ -411,7 +414,7 @@ export function MeetingRecorder({
                     variant="ghost"
                     size="sm"
                     onClick={() =>
-                      void deleteRecording(item.id).then(() =>
+                      void deleteRecording(userId, item.id).then(() =>
                         setRecoveries((items) => items.filter((row) => row.id !== item.id))
                       )
                     }
@@ -615,7 +618,8 @@ export function MeetingRecorder({
         <div className="mt-5 flex items-start gap-3">
           <ShieldCheck className="text-muted-foreground mt-0.5 size-4 shrink-0" />
           <p className="text-muted-foreground text-xs leading-relaxed">
-            Let everyone know you are recording. Audio is kept privately. Use headphones to avoid
+            Let everyone know you are recording. Audio is deleted from our servers after
+            transcription; download it from the meeting page on this device. Use headphones to avoid
             capturing speaker audio twice.
           </p>
         </div>

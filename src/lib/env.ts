@@ -16,6 +16,9 @@ const serverEnvSchema = z.object({
   // OAuth
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
+  // Admin-only OneDrive audio archive (account linking, never sign-in)
+  MICROSOFT_CLIENT_ID: z.string().optional(),
+  MICROSOFT_CLIENT_SECRET: z.string().optional(),
 
   // AI
   OPENROUTER_API_KEY: z.string().optional(),

@@ -1,0 +1,1 @@
+ALTER TABLE "meetings" ADD COLUMN "onedrive_upload_url" text;
