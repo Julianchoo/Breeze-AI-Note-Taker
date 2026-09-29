@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { AppWindow, AudioLines, FileText, Mic } from "lucide-react";
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
+import { ProductDemo } from "@/components/home/product-demo";
 import { getOptionalSession } from "@/lib/session";
 
 const STEPS = [
@@ -41,6 +42,10 @@ export default async function Home() {
             <GoogleSignInButton />
           </div>
         </section>
+
+        <div className="animate-fade-up mt-16 [animation-delay:180ms] sm:mt-24">
+          <ProductDemo />
+        </div>
 
         <div className="rule-fade mt-20 h-px sm:mt-28" />
 
