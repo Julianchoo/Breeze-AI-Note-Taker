@@ -6,14 +6,14 @@ import { auth } from "./auth";
 import { db } from "./db";
 import { MAX_CHUNKS, type Meeting, type MeetingDetail, type SharedMeeting, type TranscriptSegment } from "./meeting-types";
 import { MeetingError, MAX_WAV_BYTES, chunkIndex, joinedWavHeader, partDataBytes, requireSameOrigin, segmentsByChunk, tokensToSegments, validateChunkSequence, wavDuration } from "./meeting-validation";
-import { archiveName, archiveToOneDrive } from "./onedrive";
+import { archiveName, archiveToOneDrive, downloadUrl, renameArchive } from "./onedrive";
 import { SONIOX_USD_PER_HOUR, callCostUsd } from "./openai-pricing";
 import { meetingChunks, meetings, user } from "./schema";
 import { ADMIN_EMAIL } from "./utils";
 
-type Row = Pick<typeof meetings.$inferSelect, keyof Meeting>;
+type Row = Pick<typeof meetings.$inferSelect, Exclude<keyof Meeting, "hasAudio"> | "onedriveItemId">;
 function visible(row: Row): Meeting {
-  return { id: row.id, title: row.title, status: row.status, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), durationSeconds: row.durationSeconds, expectedChunks: row.expectedChunks, summary: row.summary, detectedLanguage: row.detectedLanguage, error: row.error, costUsd: row.costUsd, speakerNames: row.speakerNames, speakerSuggestions: row.speakerSuggestions, aiContext: row.aiContext, shareToken: row.shareToken, shareSummary: row.shareSummary, shareTranscript: row.shareTranscript };
+  return { id: row.id, title: row.title, status: row.status, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), durationSeconds: row.durationSeconds, expectedChunks: row.expectedChunks, summary: row.summary, detectedLanguage: row.detectedLanguage, error: row.error, costUsd: row.costUsd, speakerNames: row.speakerNames, speakerSuggestions: row.speakerSuggestions, aiContext: row.aiContext, shareToken: row.shareToken, shareSummary: row.shareSummary, shareTranscript: row.shareTranscript, hasAudio: row.onedriveItemId !== null };
 }
 export async function meetingRoute(request: Request, action: (userId: string) => Promise<Response>) {
   try {
@@ -43,7 +43,7 @@ async function owned(id: string, userId: string) {
   return row;
 }
 export async function listMeetings(userId: string) {
-  return (await db.select({ id: meetings.id, title: meetings.title, status: meetings.status, createdAt: meetings.createdAt, updatedAt: meetings.updatedAt, durationSeconds: meetings.durationSeconds, expectedChunks: meetings.expectedChunks, error: meetings.error, summary: meetings.summary, detectedLanguage: meetings.detectedLanguage, costUsd: meetings.costUsd, speakerNames: meetings.speakerNames, speakerSuggestions: meetings.speakerSuggestions, aiContext: meetings.aiContext, shareToken: meetings.shareToken, shareSummary: meetings.shareSummary, shareTranscript: meetings.shareTranscript }).from(meetings).where(eq(meetings.userId, userId)).orderBy(desc(meetings.createdAt))).map(visible);
+  return (await db.select({ id: meetings.id, title: meetings.title, status: meetings.status, createdAt: meetings.createdAt, updatedAt: meetings.updatedAt, durationSeconds: meetings.durationSeconds, expectedChunks: meetings.expectedChunks, error: meetings.error, summary: meetings.summary, detectedLanguage: meetings.detectedLanguage, costUsd: meetings.costUsd, speakerNames: meetings.speakerNames, speakerSuggestions: meetings.speakerSuggestions, aiContext: meetings.aiContext, shareToken: meetings.shareToken, shareSummary: meetings.shareSummary, shareTranscript: meetings.shareTranscript, onedriveItemId: meetings.onedriveItemId }).from(meetings).where(eq(meetings.userId, userId)).orderBy(desc(meetings.createdAt))).map(visible);
 }
 // ponytail: checked before each OpenAI call, so a user can overshoot the limit by one call's cost.
 async function requireBudget(userId: string) {
@@ -74,13 +74,15 @@ export async function updateMeeting(id: string, userId: string, body: unknown) {
     z.object({ speakerNames: z.record(z.string(), z.string().trim().max(60)) }),
     z.object({ share: z.object({ enabled: z.boolean().optional(), regenerate: z.literal(true).optional(), summary: z.boolean().optional(), transcript: z.boolean().optional() }) }),
   ]).parse(body);
+  if ("title" in input) {
+    const [updated] = await db.update(meetings).set({ title: input.title, updatedAt: new Date() }).where(scope(id, userId)).returning();
+    if (!updated) throw new MeetingError("Meeting not found.", 404);
+    await renameAudio(updated);
+    return visible(updated);
+  }
   return db.transaction(async tx => {
     const [row] = await tx.select().from(meetings).where(scope(id, userId)).for("update");
     if (!row) throw new MeetingError("Meeting not found.", 404);
-    if ("title" in input) {
-      const [updated] = await tx.update(meetings).set({ title: input.title, updatedAt: new Date() }).where(eq(meetings.id, id)).returning();
-      return visible(updated!);
-    }
     if ("share" in input) {
       const { enabled = row.shareToken !== null, regenerate, summary, transcript } = input.share;
       if (regenerate && !enabled) throw new MeetingError("Turn the share link on first.", 409);
@@ -155,6 +157,17 @@ async function audioBytes(path: string | null) {
   const blob = path && await get(path, { access: "private" });
   if (!blob || blob.statusCode !== 200) throw new MeetingError("Saved audio could not be loaded. Please retry.", 503);
   return Buffer.from(await new Response(blob.stream).arrayBuffer());
+}
+// The owner's archived audio: a redirect to OneDrive's short-lived download URL (the item id never leaves the server).
+export async function audioRedirect(id: string, userId: string) {
+  const row = await owned(id, userId);
+  if (!row.onedriveItemId) throw new MeetingError("This meeting has no audio.", 404);
+  return new Response(null, { status: 302, headers: { Location: await downloadUrl(userId, row.onedriveItemId), "Cache-Control": "no-store" } });
+}
+// Best effort: the archived WAV follows the meeting title, but OneDrive never fails the caller.
+// ponytail: two renames in quick succession can land out of order; the file then keeps the older title.
+async function renameAudio(row: Pick<typeof meetings.$inferSelect, "id" | "userId" | "createdAt" | "title" | "onedriveItemId">) {
+  if (row.onedriveItemId) await renameArchive(row.userId, row.onedriveItemId, archiveName(row.createdAt, row.title)).catch(() => console.error("OneDrive rename failed", row.id));
 }
 async function shared(token: string) {
   if (!z.uuid().safeParse(token).success) throw new MeetingError("Meeting not found.", 404);
@@ -293,14 +306,17 @@ export async function processMeeting(id: string, userId: string) {
       summary = parsed.summary; detectedLanguage = parsed.language; aiTitle = parsed.title;
       speakerSuggestions = Object.fromEntries(Object.entries(parsed.speakers).map(([k, v]) => [k, v.trim()] as const).filter(([k, v]) => labels.has(k) && v && v.length <= 60));
     }
-    await db.transaction(async tx => {
+    const titled = await db.transaction(async tx => {
       const [current] = await tx.select().from(meetings).where(fenced).for("update");
       if (!current) throw new MeetingError("Processing was resumed elsewhere. Refresh to continue.", 409);
       // ponytail: "Untitled meeting" doubles as the "no title given" sentinel; a user typing it literally also gets an AI title.
       const title = aiTitle && current.title === "Untitled meeting" ? aiTitle : undefined;
       await tx.update(meetings).set({ ...(title && { title }), speakerSuggestions, summary, detectedLanguage, status: "ready", leaseToken: null, leaseUntil: null, failures: 0, error: null, updatedAt: new Date(), ...(cost > 0 && { costUsd: sql`coalesce(${meetings.costUsd}, 0) + ${cost}` }) }).where(eq(meetings.id, id));
       if (cost > 0) await tx.update(user).set({ spentUsd: sql`${user.spentUsd} + ${cost}` }).where(eq(user.id, userId));
+      return title && { ...current, title };
     });
+    // The archive was uploaded under the placeholder title, before the summary named the meeting.
+    if (titled) await renameAudio(titled);
     return { meeting: visible(await owned(id, userId)), remaining: 0 };
   } catch (error) {
     const message = error instanceof MeetingError ? error.message : "Processing failed. Your progress is saved; retry to continue.";
@@ -317,12 +333,13 @@ export async function releaseAudio(row: typeof meetings.$inferSelect, chunks: (t
   const stored = chunks.filter(c => c.blobPath);
   if (!stored.length) return true;
   const lost = () => new MeetingError("Processing was resumed elsewhere. Refresh to continue.", 409);
-  if (admin && !(await archiveToOneDrive({ userId: row.userId, name: archiveName(row.createdAt, row.title), parts: stored.map(c => ({ path: c.blobPath!, dataBytes: partDataBytes(c.durationSeconds) })), read: audioBytes, uploadUrl: row.onedriveUploadUrl, deadline,
-    save: async url => { if (!(await db.update(meetings).set({ onedriveUploadUrl: url }).where(fence).returning({ id: meetings.id })).length) throw lost(); } }))) return false;
+  const itemId = admin && await archiveToOneDrive({ userId: row.userId, name: archiveName(row.createdAt, row.title), parts: stored.map(c => ({ path: c.blobPath!, dataBytes: partDataBytes(c.durationSeconds) })), read: audioBytes, uploadUrl: row.onedriveUploadUrl, deadline,
+    save: async url => { if (!(await db.update(meetings).set({ onedriveUploadUrl: url }).where(fence).returning({ id: meetings.id })).length) throw lost(); } });
+  if (admin && !itemId) return false;
   await db.transaction(async tx => {
     if (!(await tx.select({ id: meetings.id }).from(meetings).where(fence).for("update")).length) throw lost();
     await tx.update(meetingChunks).set({ blobPath: null }).where(inArray(meetingChunks.id, stored.map(c => c.id)));
-    await tx.update(meetings).set({ onedriveUploadUrl: null }).where(eq(meetings.id, row.id));
+    await tx.update(meetings).set({ onedriveUploadUrl: null, ...(itemId && { onedriveItemId: itemId }) }).where(eq(meetings.id, row.id));
     // Inside the transaction: a failed delete rolls the paths back, so a retry deletes again (del is idempotent).
     await del(stored.map(c => c.blobPath!));
   });

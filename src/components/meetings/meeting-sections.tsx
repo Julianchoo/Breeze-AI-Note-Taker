@@ -1,6 +1,6 @@
 "use client";
-import { type ReactNode, type Ref } from "react";
-import { ChevronDown } from "lucide-react";
+import { useImperativeHandle, useRef, useState, type ReactNode, type Ref } from "react";
+import { AudioLines, ChevronDown, TriangleAlert } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import type { TranscriptSegment } from "@/lib/meeting-types";
 
@@ -61,14 +61,81 @@ export function SummaryProse({ summary, ref }: { summary: string; ref?: Ref<HTML
   );
 }
 
-/** The collapsible transcript. */
+export type AudioPlayerHandle = { seek: (seconds: number) => void };
+/** The owner's Recording section: one WAV streamed from OneDrive through a redirecting `src`. */
+export function AudioPlayer({ src, ref }: { src: string; ref?: Ref<AudioPlayerHandle> }) {
+  const audio = useRef<HTMLAudioElement>(null);
+  const [attempt, setAttempt] = useState(0);
+  const [failed, setFailed] = useState(false);
+  const retried = useRef(false);
+  const resumeAt = useRef<number | null>(null);
+  useImperativeHandle(ref, () => ({
+    seek(seconds: number) {
+      const element = audio.current;
+      if (!element) return;
+      if (element.readyState === 0) resumeAt.current = seconds;
+      else element.currentTime = seconds;
+      void element.play().catch(() => {});
+    },
+  }));
+  return (
+    <section className="animate-fade-up mb-12 flex flex-col gap-4" aria-labelledby="audio-heading">
+      <h2 id="audio-heading" className="font-display flex items-center gap-2.5 text-2xl">
+        <AudioLines className="text-muted-foreground size-5" aria-hidden="true" />
+        Recording
+      </h2>
+      <div className="border-border bg-card rounded-2xl border p-3 sm:p-4">
+        <audio
+          ref={audio}
+          controls
+          preload="metadata"
+          // The query only forces a fresh request: the redirect target expires after about an hour.
+          src={attempt ? `${src}?retry=${attempt}` : src}
+          className="w-full [color-scheme:light] dark:[color-scheme:dark]"
+          onLoadedMetadata={() => {
+            retried.current = false;
+            setFailed(false);
+            if (audio.current && resumeAt.current !== null) {
+              audio.current.currentTime = resumeAt.current;
+              resumeAt.current = null;
+            }
+          }}
+          onError={() => {
+            // One silent retry (e.g. an expired OneDrive link), resuming where playback stopped.
+            if (retried.current) return setFailed(true);
+            retried.current = true;
+            resumeAt.current = audio.current?.currentTime || null;
+            setAttempt((n) => n + 1);
+          }}
+        />
+      </div>
+      <p className="text-muted-foreground text-xs leading-5">
+        Played from your OneDrive. Select a transcript timestamp to jump straight to that moment.
+      </p>
+      {failed && (
+        <p
+          role="alert"
+          className="border-destructive/25 bg-destructive/5 text-destructive flex items-start gap-3 rounded-xl border p-4 text-sm leading-6"
+        >
+          <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          Could not play the audio from OneDrive. Reconnect OneDrive from your account menu and
+          reload.
+        </p>
+      )}
+    </section>
+  );
+}
+
+/** The collapsible transcript. Timestamps are buttons only when `onSeek` is given. */
 export function TranscriptList({
   segments,
   speakerNames,
+  onSeek,
   note,
 }: {
   segments: TranscriptSegment[];
   speakerNames: Record<string, string>;
+  onSeek?: ((seconds: number) => void) | undefined;
   note?: ReactNode;
 }) {
   return (
@@ -105,9 +172,20 @@ export function TranscriptList({
                 className="hover:bg-muted/50 -mx-3 grid gap-1 rounded-lg px-3 py-2.5 transition-colors sm:grid-cols-[7.5rem_1fr] sm:gap-5"
               >
                 <div className="flex items-baseline gap-2.5 sm:flex-col sm:gap-1">
-                  <span className="text-muted-foreground font-mono text-xs tabular-nums">
-                    {timestamp(segment.start)}
-                  </span>
+                  {onSeek ? (
+                    <button
+                      type="button"
+                      className="text-muted-foreground hover:text-primary rounded font-mono text-xs tabular-nums underline-offset-4 transition-colors hover:underline"
+                      onClick={() => onSeek(segment.start)}
+                      aria-label={`Play audio at ${timestamp(segment.start)}`}
+                    >
+                      {timestamp(segment.start)}
+                    </button>
+                  ) : (
+                    <span className="text-muted-foreground font-mono text-xs tabular-nums">
+                      {timestamp(segment.start)}
+                    </span>
+                  )}
                   <span className="text-foreground/70 truncate text-[0.6875rem] font-medium tracking-[0.12em] uppercase">
                     {speakerNames[segment.speaker] || segment.speaker}
                   </span>

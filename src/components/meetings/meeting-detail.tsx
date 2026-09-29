@@ -18,7 +18,14 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { toast } from "sonner";
-import { relabel, SummaryProse, timestamp, TranscriptList } from "@/components/meetings/meeting-sections";
+import {
+  AudioPlayer,
+  type AudioPlayerHandle,
+  relabel,
+  SummaryProse,
+  timestamp,
+  TranscriptList,
+} from "@/components/meetings/meeting-sections";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -113,6 +120,7 @@ export function MeetingDetailView({ id }: { id: string }) {
   const [aiContext, setAiContext] = useState("");
   const [exporting, setExporting] = useState(false);
   const summaryRef = useRef<HTMLDivElement>(null);
+  const player = useRef<AudioPlayerHandle>(null);
   const [speaker, setSpeaker] = useState<string | null>(null);
   const [speakerName, setSpeakerName] = useState("");
   const [speakerSaving, setSpeakerSaving] = useState(false);
@@ -893,6 +901,8 @@ export function MeetingDetailView({ id }: { id: string }) {
           )}
         </section>
 
+        {meeting.hasAudio && <AudioPlayer ref={player} src={`${endpoint}/audio`} />}
+
         {labels.length > 0 && meeting.status !== "recording" && (
           <section
             className="animate-fade-up mb-8 flex flex-col gap-3"
@@ -1004,6 +1014,7 @@ export function MeetingDetailView({ id }: { id: string }) {
         <TranscriptList
           segments={segments}
           speakerNames={meeting.speakerNames}
+          onSeek={meeting.hasAudio ? (seconds) => player.current?.seek(seconds) : undefined}
           note="Speaker labels distinguish voices across the whole recording; rename speakers above to show their names. Older meetings may label speakers per audio part."
         />
       </div>

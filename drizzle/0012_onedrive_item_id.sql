@@ -1,0 +1,1 @@
+ALTER TABLE "meetings" ADD COLUMN "onedrive_item_id" text;

@@ -109,6 +109,8 @@ export const meetings = pgTable("meetings", {
   sonioxTranscriptionId: text("soniox_transcription_id"),
   // In-flight OneDrive upload session (admin audio archive); a bearer URL, never sent to the client.
   onedriveUploadUrl: text("onedrive_upload_url"),
+  // The archived WAV's OneDrive item id (playback); NULL = not archived. Never sent to the client.
+  onedriveItemId: text("onedrive_item_id"),
   // Public view-only link; NULL = sharing off. Each section is shared independently.
   shareToken: uuid("share_token").unique(),
   shareSummary: boolean("share_summary").default(true).notNull(),

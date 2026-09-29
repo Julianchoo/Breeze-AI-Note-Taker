@@ -19,6 +19,8 @@ export type Meeting = {
   aiContext: string | null;
   /** Public link token; null = sharing off. Owner-only. */
   shareToken: string | null; shareSummary: boolean; shareTranscript: boolean;
+  /** The audio is archived in the owner's OneDrive and playable from `/api/meetings/{id}/audio`. Owner-only. */
+  hasAudio: boolean;
 };
 /** What a public share link exposes; unshared sections are omitted. */
 export type SharedMeeting = {

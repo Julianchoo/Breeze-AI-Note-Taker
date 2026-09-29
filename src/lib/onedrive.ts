@@ -4,7 +4,8 @@ import { db } from "./db";
 import { MeetingError, joinedWavHeader, joinedWavPieces } from "./meeting-validation";
 import { account } from "./schema";
 
-const GRAPH = "https://graph.microsoft.com/v1.0", FOLDER = "Audios Breeze";
+const GRAPH = "https://graph.microsoft.com/v1.0";
+export const FOLDER = "Audios Breeze";
 // Graph wants fragments in multiples of 320 KiB; ~9.4 MB per PUT.
 const FRAGMENT = 30 * 320 * 1024;
 const RECONNECT = "Could not save the audio to OneDrive. Reconnect OneDrive from your account menu and retry.";
@@ -21,14 +22,35 @@ async function token(userId: string) {
   const { accessToken } = await auth.api.getAccessToken({ body: { accountId: row.id, userId } }).catch(() => { throw new MeetingError(RECONNECT, 502); });
   return accessToken;
 }
-async function graph(userId: string, path: string, body: unknown) {
-  return fetch(`${GRAPH}${path}`, { method: "POST", headers: { Authorization: `Bearer ${await token(userId)}`, "Content-Type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(30_000) });
+async function graph(userId: string, path: string, body: unknown, method = "POST") {
+  return fetch(`${GRAPH}${path}`, { method, headers: { Authorization: `Bearer ${await token(userId)}`, "Content-Type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(30_000) });
 }
+/** GET a Graph path (or an absolute `@odata.nextLink`) as the user. */
+export async function graphGet(userId: string, path: string) {
+  const response = await fetch(path.startsWith("/") ? `${GRAPH}${path}` : path, { headers: { Authorization: `Bearer ${await token(userId)}` }, signal: AbortSignal.timeout(30_000) });
+  if (response.status === 404) throw new MeetingError("Audio not found in OneDrive.", 404);
+  if (!response.ok) throw new MeetingError(RECONNECT, 502);
+  return response.json() as Promise<unknown>;
+}
+/** Pre-authenticated, short-lived (~1 h) URL of an archived WAV; it supports Range, so players seek against OneDrive directly. */
+export async function downloadUrl(userId: string, itemId: string) {
+  const url = (await graphGet(userId, `/me/drive/items/${encodeURIComponent(itemId)}?select=id,@microsoft.graph.downloadUrl`) as { "@microsoft.graph.downloadUrl"?: string })["@microsoft.graph.downloadUrl"];
+  if (!url) throw new MeetingError(RECONNECT, 502);
+  return url;
+}
+const nameTaken = async (response: Response) => response.status === 409 && (await response.json().catch(() => null) as { error?: { code?: string } } | null)?.error?.code === "nameAlreadyExists";
 export async function ensureFolder(userId: string) {
   const response = await graph(userId, "/me/drive/root/children", { name: FOLDER, folder: {}, "@microsoft.graph.conflictBehavior": "fail" });
-  if (response.ok) return;
-  const code = response.status === 409 && (await response.json().catch(() => null) as { error?: { code?: string } } | null)?.error?.code;
-  if (code !== "nameAlreadyExists") throw new MeetingError(RECONNECT, 502);
+  if (!response.ok && !(await nameTaken(response))) throw new MeetingError(RECONNECT, 502);
+}
+/** Renames an archived WAV; a taken name becomes "name (2).wav", "name (3).wav"… (Graph documents no conflictBehavior on update, so a clash is a 409). */
+export async function renameArchive(userId: string, itemId: string, name: string) {
+  for (let n = 1; n <= 5; n++) {
+    const response = await graph(userId, `/me/drive/items/${encodeURIComponent(itemId)}`, { name: n === 1 ? name : name.replace(/\.wav$/, ` (${n}).wav`) }, "PATCH");
+    if (response.ok) return;
+    if (!(await nameTaken(response))) throw new MeetingError(RECONNECT, 502);
+  }
+  throw new MeetingError(RECONNECT, 502);
 }
 // OneDrive rejects " * : < > ? / \ | and control characters in names.
 export const archiveName = (createdAt: Date, title: string) => `${createdAt.toISOString().slice(0, 10)} ${title}`.replace(/["*:<>?/\\|\u0000-\u001f]/g, "-").trim() + ".wav";
@@ -36,7 +58,7 @@ const nextStart = (body: unknown) => Number((body as { nextExpectedRanges?: stri
 
 /**
  * Streams a meeting's parts to OneDrive as one WAV through a resumable upload session. `save` persists the session URL
- * (null = start over) so a later call resumes; returns true once OneDrive holds the complete file, false when `deadline` hit first.
+ * (null = start over) so a later call resumes; returns the item id once OneDrive holds the complete file, false when `deadline` hit first.
  */
 export async function archiveToOneDrive({ userId, name, parts, read, uploadUrl, save, deadline = Infinity }: {
   userId: string; name: string; parts: { path: string; dataBytes: number }[]; read: (path: string) => Promise<Buffer>;
@@ -76,7 +98,8 @@ export async function archiveToOneDrive({ userId, name, parts, read, uploadUrl, 
     const response = await put(Buffer.concat(bytes), offset);
     if (response.status === 404) { url = null; await save(null); continue; } // session expired mid-upload: start over
     if (response.status === 202) { offset = nextStart(await response.json()); continue; }
-    if ((response.status === 200 || response.status === 201) && ((await response.json()) as { size?: number }).size === total) return true;
+    const item = response.status === 200 || response.status === 201 ? (await response.json()) as { id?: string; size?: number } : null;
+    if (item?.id && item.size === total) return item.id;
     throw new MeetingError(RECONNECT, 502);
   }
   return false;
