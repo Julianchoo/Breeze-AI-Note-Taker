@@ -157,7 +157,7 @@ export function MeetingDetailView({ id }: { id: string }) {
           return;
         setProcessing(true);
         for (;;) {
-          const result = await request<{ remaining: number; busy?: boolean }>(
+          const result = await request<{ remaining: number; busy?: boolean; waitMs?: number }>(
             `${endpoint}/process`,
             { method: "POST", signal: controller.signal }
           );
@@ -166,7 +166,9 @@ export function MeetingDetailView({ id }: { id: string }) {
           if (controller.signal.aborted) return;
           setDetail(data);
           if (result.remaining === 0) break;
-          if (result.busy) await new Promise((resolve) => setTimeout(resolve, 2000));
+          /* Busy: another call holds the lease, or OpenAI asked to wait out its per-minute limit. */
+          if (result.busy)
+            await new Promise((resolve) => setTimeout(resolve, result.waitMs ?? 2000));
           if (controller.signal.aborted) return;
         }
       } catch (error) {
