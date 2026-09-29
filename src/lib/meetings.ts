@@ -198,7 +198,17 @@ export async function deleteMeeting(id: string, userId: string) {
 async function openAI(endpoint: string, body: FormData | string) {
   if (!process.env.OPENAI_API_KEY) throw new MeetingError("OpenAI is not configured on the server.", 503);
   const response = await fetch(`https://api.openai.com/v1/${endpoint}`, { method: "POST", headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, ...(typeof body === "string" ? { "Content-Type": "application/json" } : {}) }, body, signal: AbortSignal.timeout(210_000) });
-  if (!response.ok) throw new MeetingError(response.status === 429 ? "OpenAI is busy or its quota was reached. Check billing and retry." : "OpenAI could not process this recording. Please retry.", 502);
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    console.error("OpenAI error", endpoint, response.status, body.slice(0, 2000));
+    const code = z.object({ error: z.object({ code: z.string().nullish(), message: z.string().nullish() }) }).safeParse((() => { try { return JSON.parse(body); } catch { return null; } })()).data?.error;
+    // A 429 is either an empty balance or a rate limit; a transcript bigger than the tokens-per-minute limit fails the same way on every retry.
+    const message = response.status !== 429 ? "OpenAI could not process this recording. Please retry."
+      : code?.code === "insufficient_quota" ? "OpenAI has no credit left. Add funds in the OpenAI billing page and retry."
+      : /request too large|tokens per min/i.test(code?.message ?? "") ? "This meeting is too long for your OpenAI rate limit (tokens per minute). Raise your OpenAI usage tier and retry."
+      : "OpenAI is rate limiting requests. Wait a minute and retry.";
+    throw new MeetingError(message, 502);
+  }
   return response.json();
 }
 async function soniox(path: string, init: RequestInit = {}) {
