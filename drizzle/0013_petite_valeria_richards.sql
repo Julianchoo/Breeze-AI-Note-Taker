@@ -1,1 +1,0 @@
-ALTER TABLE "meetings" ADD COLUMN "summary_notes" jsonb;

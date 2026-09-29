@@ -3,10 +3,6 @@ import { CHUNK_SECONDS, MAX_CHUNKS, MIN_CHUNK_SECONDS, type TranscriptSegment } 
 export class MeetingError extends Error {
   constructor(message: string, public status = 400) { super(message); }
 }
-// A per-minute rate limit: not a failure, the caller waits `waitMs` and continues.
-export class RateLimited extends MeetingError {
-  constructor(public waitMs: number) { super("OpenAI is rate limiting requests. Wait a minute and retry.", 502); }
-}
 export function requireSameOrigin(request: Request) {
   const origin = request.headers.get("origin");
   if (!origin || origin !== new URL(request.url).origin) throw new MeetingError("Invalid request origin.", 403);
@@ -72,18 +68,6 @@ export function segmentsByChunk(segments: TranscriptSegment[], durations: number
     while (i < durations.length - 1 && s.start >= end) end += durations[++i]!;
     parts[i]?.push(s);
   }
-  return parts;
-}
-// Groups whole transcript lines into parts of at most maxChars (joined with "\n"); a longer line is hard-split on its own.
-export function splitTranscript(lines: string[], maxChars: number) {
-  const parts: string[] = []; let current: string | undefined;
-  for (const line of lines) {
-    if (current !== undefined && current.length + 1 + line.length <= maxChars) { current += "\n" + line; continue; }
-    if (current !== undefined) parts.push(current);
-    current = line;
-    while (current.length > maxChars) { parts.push(current.slice(0, maxChars)); current = current.slice(maxChars); }
-  }
-  if (current !== undefined) parts.push(current);
   return parts;
 }
 /* Soniox reports no progress, so the UI estimates it from elapsed time: ~10 s + d/20 to transcribe and ~15 s + d/30

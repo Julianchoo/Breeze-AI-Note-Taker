@@ -104,8 +104,6 @@ export const meetings = pgTable("meetings", {
   speakerNames: jsonb("speaker_names").$type<Record<string, string>>().default({}).notNull(),
   speakerSuggestions: jsonb("speaker_suggestions").$type<Record<string, string>>().default({}).notNull(),
   aiContext: text("ai_context"),
-  // Long meetings: detailed notes per transcript part, summarized one part per call; cleared when the summary is saved.
-  summaryNotes: jsonb("summary_notes").$type<string[]>(),
   // In-flight Soniox upload and transcription job; cleared once the transcript is saved or the job fails.
   sonioxFileId: text("soniox_file_id"),
   sonioxTranscriptionId: text("soniox_transcription_id"),
