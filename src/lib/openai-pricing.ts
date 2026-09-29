@@ -1,13 +1,15 @@
 import { z } from "zod";
 
 // OpenAI list prices in USD per 1M tokens.
-// Checked 2026-09-23 against https://developers.openai.com/api/docs/pricing — update the numbers and this date together.
+// Checked 2026-09-23 (gpt-6-sol 2026-09-29) against https://developers.openai.com/api/docs/pricing — update the numbers and this date together.
 // List prices only: excludes tax, volume discounts and committed-spend rates.
 const PRICING = {
   // perSecond is OpenAI's own ~$0.006/min figure, used ONLY for the `duration` usage variant.
   "gpt-4o-transcribe-diarize": { input: 2.5, output: 10, perSecond: 0.006 / 60 },
   "gpt-4.1": { input: 2, output: 8 },
   "gpt-4.1-mini": { input: 0.4, output: 1.6 },
+  // Above 272k input tokens a whole call is billed at 2x input and 1.5x output; reasoning tokens are billed as output.
+  "gpt-6-sol": { input: 2, output: 10, longContext: { above: 272_000, input: 4, output: 15 } },
 } as const;
 
 // Soniox stt-async-v5 list price, speaker diarization included. Checked 2026-09-24 against https://soniox.com/pricing.
@@ -27,5 +29,6 @@ export function callCostUsd(model: keyof typeof PRICING, body: unknown): number 
   const usage = parsed.data, price = PRICING[model];
   if ("type" in usage && usage.type === "duration") return "perSecond" in price ? usage.seconds * price.perSecond : 0;
   const input = "type" in usage ? usage.input_tokens : usage.prompt_tokens, output = "type" in usage ? usage.output_tokens : usage.completion_tokens;
-  return (input * price.input + output * price.output) / 1_000_000;
+  const rate = "longContext" in price && input > price.longContext.above ? price.longContext : price;
+  return (input * rate.input + output * rate.output) / 1_000_000;
 }
