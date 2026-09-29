@@ -44,6 +44,12 @@ export default async function Home() {
         </section>
 
         <div className="animate-fade-up mt-16 [animation-delay:180ms] sm:mt-24">
+          <header className="mb-6 flex flex-col gap-2 sm:mb-8">
+            <p className="eyebrow">See it at work</p>
+            <h2 className="font-display text-3xl leading-tight sm:text-4xl">
+              One meeting, start to finish.
+            </h2>
+          </header>
           <ProductDemo />
         </div>
 
