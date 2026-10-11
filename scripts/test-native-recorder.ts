@@ -58,7 +58,7 @@ async function main() {
   requests.length = 0;
   visibility.visibilityState = "hidden";
   assert.equal(await syncNativeRecording(state), false);
-  assert.deepEqual(requests, [], "hidden web view leaves upload for foreground recovery");
+  assert.equal(requests.length, 0, "hidden web view leaves upload for foreground recovery");
   visibility.visibilityState = "visible";
   state.stopped = false;
   assert.equal(await syncNativeRecording(state), false);
