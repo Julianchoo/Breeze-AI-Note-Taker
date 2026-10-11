@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { GET } from "../src/app/api/android/apk/route";
 
+async function main() {
 const originalFetch = globalThis.fetch;
 const bytes = new Uint8Array(2048);
 bytes.set([0x50, 0x4b, 3, 4]);
@@ -42,3 +43,7 @@ if (process.env.ANDROID_DOWNLOAD_LIVE === "1") {
   assert.deepEqual([...liveBytes.slice(0, 4)], [0x50, 0x4b, 3, 4]);
   console.log("Live public Android APK download passed");
 }
+
+}
+
+main().catch((error) => { console.error(error); process.exitCode = 1; });
