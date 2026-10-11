@@ -33,6 +33,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: python3 scripts/test-android-publication.py
+      - run: python3 scripts/test-android-signing.py
       - run: node tests/android-handoff.test.mjs
       - run: pnpm exec tsx scripts/test-native-recorder.ts
       - run: ANDROID_DOWNLOAD_LIVE=1 pnpm exec tsx scripts/test-android-download.ts
@@ -66,6 +67,12 @@ jobs:
         with:
           path: ~/.android/debug.keystore
           key: breeze-android-personal-signing-v1
+      - name: Restore recovered signing key
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.android/breeze-distribution.keystore
+          key: breeze-android-personal-signing-v2
       - name: Prepare signing
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
         env:
@@ -74,18 +81,34 @@ jobs:
           if [ -n "$KEYSTORE_BASE64" ]; then
             printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/breeze.keystore"
             echo "BREEZE_KEYSTORE_PATH=$RUNNER_TEMP/breeze.keystore" >> "$GITHUB_ENV"
+            echo "BREEZE_SIGNING_FROM_SECRET=true" >> "$GITHUB_ENV"
           else
             mkdir -p "$HOME/.android"
             if [ ! -f "$HOME/.android/debug.keystore" ]; then
               keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -keypass android -alias androiddebugkey -dname 'CN=Breeze Personal Android' -keyalg RSA -keysize 2048 -validity 10000
             fi
+            if [ -f "$HOME/.android/breeze-distribution.keystore" ]; then
+              echo "BREEZE_KEYSTORE_PATH=$HOME/.android/breeze-distribution.keystore" >> "$GITHUB_ENV"
+            else
+              echo "BREEZE_KEYSTORE_PATH=$HOME/.android/debug.keystore" >> "$GITHUB_ENV"
+            fi
           fi
       - name: Build and test Android
         env:
-          BREEZE_KEYSTORE_PASSWORD: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' && secrets.ANDROID_KEYSTORE_PASSWORD || '' }}
-          BREEZE_KEY_ALIAS: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' && secrets.ANDROID_KEY_ALIAS || '' }}
-          BREEZE_KEY_PASSWORD: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' && secrets.ANDROID_KEY_PASSWORD || '' }}
-        run: gradle --no-daemon "-PbreezeOrigin=$BREEZE_APP_URL" "-PbreezeVersionCode=$((GITHUB_RUN_NUMBER + 100))" "-PbreezeVersionName=1.0.$GITHUB_RUN_NUMBER" test lintDebug assembleDebug
+          BREEZE_KEYSTORE_PASSWORD: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' && secrets.ANDROID_KEYSTORE_PASSWORD || 'android' }}
+          BREEZE_KEY_ALIAS: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' && secrets.ANDROID_KEY_ALIAS || 'androiddebugkey' }}
+          BREEZE_KEY_PASSWORD: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' && secrets.ANDROID_KEY_PASSWORD || 'android' }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -n "${BREEZE_KEYSTORE_PATH:-}" ]; then
+            bash ../scripts/restore-android-signer.sh
+            # Recovery writes the selected path for later steps; load it for this build too.
+            export BREEZE_KEYSTORE_PATH="$(sed -n 's/^BREEZE_KEYSTORE_PATH=//p' "$GITHUB_ENV" | tail -n 1)"
+          fi
+          gradle --no-daemon "-PbreezeOrigin=$BREEZE_APP_URL" "-PbreezeVersionCode=$((GITHUB_RUN_NUMBER + 100))" "-PbreezeVersionName=1.0.$GITHUB_RUN_NUMBER" test lintDebug assembleDebug
+          if [ -n "${BREEZE_KEYSTORE_PATH:-}" ]; then
+            bash ../scripts/verify-android-signing.sh app/build/outputs/apk/debug/app-debug.apk
+          fi
         working-directory: android
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

@@ -7,9 +7,9 @@ en Play Store ni guardar credenciales del servidor dentro del APK.
 ## Obtener, instalar y actualizar
 
 Abrir [Breeze → Android](https://breeze-ai-lime.vercel.app/android), también
-accesible desde el encabezado de la web. El botón descarga directamente
-[`breeze.apk`](https://github.com/Julianchoo/Breeze-AI-Note-Taker/releases/download/android-latest/breeze.apk),
-sin ZIP ni inicio de sesión en GitHub. Abrirlo y autorizar la instalación desde
+accesible desde el encabezado de la web. El botón principal descarga
+[`breeze.apk`](https://breeze-ai-lime.vercel.app/api/android/apk) desde el propio
+sitio, sin ZIP ni inicio de sesión en GitHub. GitHub queda como descarga alternativa. Abrirlo y autorizar la instalación desde
 esa fuente cuando Android lo pida. La página muestra la versión instalada cuando se abre desde la app y
 permite descargar otra vez para actualizar; Android pide confirmar la instalación.
 No es una actualización automática ni una publicación en Play Store.
@@ -136,9 +136,20 @@ crecer en cada publicación. El script rechaza un código que no aumenta o un
 certificado distinto al ya publicado: **restaurar la clave original**, no borrar
 la release ni generar otra para eludir esa comprobación.
 
-CI conserva `~/.android/debug.keystore` en la caché
-`breeze-android-personal-signing-v1`. Si no hay caché ni secretos, genera una clave
-personal debug (alias `androiddebugkey`, contraseñas de desarrollo `android`).
+CI restaura primero `~/.android/debug.keystore` desde la caché original
+`breeze-android-personal-signing-v1`, y la clave recuperada de
+`~/.android/breeze-distribution.keystore` desde `breeze-android-personal-signing-v2`.
+Selecciona la ruta explícitamente mediante `BREEZE_KEYSTORE_PATH`; no depende de
+la ubicación de firma debug que Gradle elija por defecto. Antes de compilar,
+`scripts/restore-android-signer.sh` compara el certificado público con el APK ya
+publicado y puede recuperar una clave coincidente de los directorios restaurados.
+Solo la clave coincidente se conserva en la caché v2; las claves configuradas mediante
+secretos nunca entran en esas cachés. Si no encuentra la firma original, falla sin
+rotar la clave. `scripts/verify-android-signing.sh` comprueba después que el APK
+compilado usó exactamente la clave seleccionada, antes de subir el artefacto.
+Los logs muestran rutas y huellas públicas para diagnóstico, nunca claves privadas.
+La clave personal debug inicial usa alias `androiddebugkey` y contraseñas de
+desarrollo `android`; solo sirve para una distribución personal.
 `versionCode` usa `github.run_number + 100`; `versionName`, `1.0.<run_number>`.
 No reiniciar esa numeración ni usar códigos locales para la distribución sin
 comprobar el manifiesto publicado.
