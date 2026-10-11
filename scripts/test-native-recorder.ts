@@ -39,17 +39,20 @@ async function main() {
     assert.deepEqual(JSON.parse(String(options?.body)), {action: "finish", expectedChunks: 2, durationSeconds: 2});
     return Response.json({ok: true});
   };
-  const first = syncNativeRecording(state);
+  const progress: NativeRecording[] = [];
+  const first = syncNativeRecording(state, (recording: NativeRecording) => progress.push(recording));
   assert.equal(syncNativeRecording(state), first, "concurrent callers share upload job");
   await assert.rejects(first, /Offline/);
   assert.deepEqual(state.uploaded, [0], "only confirmed receipts are persisted");
   assert.equal(state.finished, false);
+  assert.deepEqual(progress.map((recording: NativeRecording) => recording.uploaded), [[0]], "progress includes only persisted upload receipts");
   failSecond = false;
   receiptMismatch = true;
   await assert.rejects(syncNativeRecording(state), /not confirmed/);
   assert.deepEqual(state.uploaded, [0]);
   receiptMismatch = false;
-  assert.equal(await syncNativeRecording(state), true);
+  assert.equal(await syncNativeRecording(state, (recording: NativeRecording) => progress.push(recording)), true);
+  assert.equal(progress.at(-1)?.finished, true, "finished progress requires server confirmation");
   assert.deepEqual(requests, ["chunk0", "chunk1", "chunk1", "chunk1", "finish"], "retry skips persisted receipt and finishes once");
   await syncNativeRecording(state);
   assert.equal(requests.filter((request) => request === "finish").length, 1);
@@ -63,6 +66,13 @@ async function main() {
   state.stopped = false;
   assert.equal(await syncNativeRecording(state), false);
   assert.ok(!requests.includes("finish"), "ongoing service recording never finishes");
+  const statusModule = "../src/lib/audio-status.ts";
+  const { phoneAudioStatus, archiveAudioStatus } = await import(statusModule);
+  assert.equal(phoneAudioStatus({...state, stopped: true, finished: false}, false).label, "Saved on phone");
+  assert.equal(phoneAudioStatus({...state, finished: false}, true).label, "Uploading");
+  assert.equal(phoneAudioStatus({...state, finished: true}, false).label, "Uploaded");
+  assert.equal(archiveAudioStatus(false), "OneDrive archive not confirmed", "upload completion does not claim OneDrive archival");
+  assert.equal(archiveAudioStatus(true), "Saved in OneDrive");
   console.log("Native recorder recovery tests passed.");
 }
 void main().catch((error) => { console.error(error); process.exitCode = 1; });

@@ -70,14 +70,14 @@ export async function checkedNativeRequest(response: Response) {
 }
 // Shared across component remounts: never run concurrent uploads/finish for one meeting.
 const syncing = new Map<string, Promise<boolean>>();
-export function syncNativeRecording(recording: NativeRecording): Promise<boolean> {
+export function syncNativeRecording(recording: NativeRecording, onProgress?: (recording: NativeRecording) => void): Promise<boolean> {
   const existing = syncing.get(recording.id);
   if (existing) return existing;
-  const task = upload(recording).finally(() => syncing.delete(recording.id));
+  const task = upload(recording, onProgress).finally(() => syncing.delete(recording.id));
   syncing.set(recording.id, task);
   return task;
 }
-async function upload(recording: NativeRecording) {
+async function upload(recording: NativeRecording, onProgress?: (recording: NativeRecording) => void) {
   const current = nativeRecording(recording.id, recording.userId);
   if (current.finished) return true;
   const foreground = () => document.visibilityState === "visible" && navigator.onLine;
@@ -94,6 +94,7 @@ async function upload(recording: NativeRecording) {
     }));
     if (receipt?.index !== index) throw new Error("Audio upload was not confirmed.");
     parseNativeResult(bridge().markChunkUploaded(current.id, current.userId, index));
+    onProgress?.(nativeRecording(current.id, current.userId));
   }
   // Only sealed, stopped recordings are finished. New chunks will be picked up next poll.
   if (!current.stopped || !foreground()) return false;
@@ -104,5 +105,6 @@ async function upload(recording: NativeRecording) {
     signal: AbortSignal.timeout(60000),
   }));
   parseNativeResult(bridge().markFinished(current.id, current.userId));
+  onProgress?.(nativeRecording(current.id, current.userId));
   return true;
 }

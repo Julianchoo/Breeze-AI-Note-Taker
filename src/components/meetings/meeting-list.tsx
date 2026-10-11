@@ -207,6 +207,7 @@ export function MeetingList() {
                         })}
                         {"durationSeconds" in meeting && ` · ${Math.ceil(meeting.durationSeconds / 60)} min`}
                       </p>
+                      {"hasAudio" in meeting && meeting.hasAudio ? <p className="text-success mt-1.5 text-xs">Saved in OneDrive</p> : null}
                       {"excerpt" in meeting && meeting.excerpt && (
                         <p className="text-muted-foreground mt-1.5 line-clamp-2 text-sm leading-6">
                           <Highlight text={meeting.excerpt} query={search.term} />
@@ -266,3 +267,4 @@ export function MeetingList() {
     </div>
   );
 }
+

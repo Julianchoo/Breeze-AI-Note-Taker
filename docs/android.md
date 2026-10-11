@@ -271,3 +271,18 @@ horizontal y navegación por gestos. El arreglo nativo futuro debe consumir
 reserva cuando el host gestione esos espacios y publicarse con la firma original.
 No desinstalar solo para corregir el espaciado: recargar/reabrir la app obtiene
 los cambios web sin tocar las grabaciones locales.
+
+## Estado visible del audio y respaldo de firma preparado
+
+La pantalla nativa muestra **Saved on phone**, **Uploading** con partes confirmadas
+y **Uploaded** cuando el servidor confirmó la subida. Una subida confirmada no
+significa que el audio esté archivado en OneDrive: la reunión muestra por separado
+**Saved in OneDrive** o **OneDrive archive not confirmed**. Mientras no haya
+confirmación del archivo, conservar la copia local y usar **Export audio** antes de
+reinstalar. Estos estados llegan por la web al APK instalado y no necesitan cambiar
+su firma.
+
+Está preparada y probada una utilidad para cifrar/restaurar un respaldo de firma
+con un único secreto del propietario; **todavía no está activada**. Ver
+[preparación de migración y respaldo](android-signing-migration.md). El APK actual
+no cambió y su firma original sigue bloqueando nuevas publicaciones compatibles.
