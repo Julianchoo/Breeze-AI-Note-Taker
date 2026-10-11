@@ -1,0 +1,59 @@
+name: Android APK
+
+on:
+  push:
+    branches: [codex/android-background-recording]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-web:
+    runs-on: ubuntu-latest
+    env:
+      POSTGRES_URL: postgresql://build:build@localhost:5432/breeze
+      BETTER_AUTH_SECRET: ci-build-placeholder-secret-at-least-32-characters
+      NEXT_PUBLIC_APP_URL: https://example.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: node tests/android-handoff.test.mjs
+      - run: pnpm exec tsx scripts/test-native-recorder.ts
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm build:ci
+
+  build-android:
+    runs-on: ubuntu-latest
+    env:
+      BREEZE_APP_URL: ${{ vars.BREEZE_APP_URL || 'https://breeze-ai-lime.vercel.app' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - run: gradle --no-daemon "-PbreezeOrigin=$BREEZE_APP_URL" test lintDebug assembleDebug
+        working-directory: android
+      - uses: actions/upload-artifact@v4
+        with:
+          name: breeze-android-debug
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
