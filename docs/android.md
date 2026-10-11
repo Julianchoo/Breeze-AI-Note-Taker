@@ -19,8 +19,9 @@ aleatoria de CI que no se conserva. La primera versión de distribución tiene o
 firma: Android rechaza su instalación sobre aquella versión. Antes de
 hacer una única desinstalación/reinstalación, sincronizar todo y exportar los WAV
 pendientes con **Export audio**. Desinstalar o borrar datos elimina el audio privado y
-la sesión. Las versiones de distribución siguientes conservan su firma para
-actualizar sobre la instalada sin borrar datos.
+la sesión. **Estado actual:** el APK publicado sigue disponible y funciona,
+pero todavía no es posible publicar nuevas actualizaciones compatibles con su firma.
+Consultar el diagnóstico de firma más abajo antes de intentar reinstalar.
 
 ## Grabar y recuperar audio
 
@@ -122,6 +123,29 @@ La compilación y los tests no sustituyen comprobar la grabación, la recuperaci
 y la sincronización en un teléfono físico.
 
 ## Publicación y firma persistente
+
+### Diagnóstico actual: actualizaciones de APK bloqueadas
+
+La primera release pública se firmó con la clave debug que Gradle creó en
+`/home/runner/.config/.android/debug.keystore`. Esa ruta no se conservó en la
+caché: se guardó una clave personal distinta en `~/.android/debug.keystore`.
+El diagnóstico de CI confirmó que los certificados difieren y que la clave
+original no aparece en los directorios restaurados. La clave pública del APK no
+permite recuperar su clave privada.
+
+El APK publicado y su descarga web siguen funcionando. El workflow rechaza
+nuevas publicaciones para preservar esa distribución; no se debe borrar la
+release ni desactivar la comprobación de certificado. Mientras no aparezca una
+copia privada de la clave original, las actualizaciones sobre la app instalada
+están bloqueadas.
+
+Una nueva firma exige autorización explícita del propietario y una migración:
+subir o exportar todos los audios locales antes de desinstalar, instalar el nuevo
+APK y volver a iniciar sesión. Antes de publicar esa nueva distribución, respaldar
+su clave privada fuera de las cachés de Actions y configurar la misma clave en
+los secretos de firma. No afirmar que las siguientes actualizaciones conservan
+los datos hasta verificar una actualización real entre dos APK con esa misma firma.
+
 
 El workflow **Android APK** verifica la web y ejecuta `test lintDebug assembleDebug`
 en Android. Los PR producen artefactos de prueba; sólo la rama `master` publica
