@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Exact favicon geometry from src/app/icon.svg; fallback for icon consumers. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="48dp" android:height="48dp" android:viewportWidth="32" android:viewportHeight="32">
+    <path android:fillColor="#af5336" android:pathData="M8,0H24A8,8 0,0 1,32,8V24A8,8 0,0 1,24,32H8A8,8 0,0 1,0,24V8A8,8 0,0 1,8,0Z" />
+    <group android:translateX="4" android:translateY="4">
+        <path android:pathData="M12.8 19.6A2 2 0 1 0 14 16H2" android:fillColor="@android:color/transparent" android:strokeColor="#fcfaf6" android:strokeWidth="2.25" android:strokeLineCap="round" android:strokeLineJoin="round" />
+        <path android:pathData="M17.5 8a2.5 2.5 0 1 1 2 4H2" android:fillColor="@android:color/transparent" android:strokeColor="#fcfaf6" android:strokeWidth="2.25" android:strokeLineCap="round" android:strokeLineJoin="round" />
+        <path android:pathData="M9.8 4.4A2 2 0 1 1 11 8H2" android:fillColor="@android:color/transparent" android:strokeColor="#fcfaf6" android:strokeWidth="2.25" android:strokeLineCap="round" android:strokeLineJoin="round" />
+    </group>
+</vector>

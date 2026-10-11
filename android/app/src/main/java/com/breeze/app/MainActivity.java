@@ -203,6 +203,9 @@ public class MainActivity extends Activity {
         if (value == null || !value.matches("[A-Za-z0-9_-]{1,128}")) throw new IllegalArgumentException("Invalid recording or user ID");
     }
     public class Bridge {
+        @JavascriptInterface public String getAppInfo() {
+            return result(() -> new JSONObject().put("versionCode", BuildConfig.VERSION_CODE).put("versionName", BuildConfig.VERSION_NAME));
+        }
         @JavascriptInterface public void signIn() { runOnUiThread(() -> beginSignIn()); }
         @JavascriptInterface public String startRecording(String id, String userId, String title) {
             return result(() -> {

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Wind } from "lucide-react";
 import { UserProfile } from "@/components/auth/user-profile";
+import { AndroidAppLink } from "@/components/android-download-button";
 import { ModeToggle } from "./ui/mode-toggle";
 export function SiteHeader() {
   return (
@@ -25,6 +26,7 @@ export function SiteHeader() {
             </span>
           </Link>
           <div className="flex items-center gap-2 sm:gap-3">
+            <AndroidAppLink />
             <ModeToggle />
             <UserProfile />
           </div>
@@ -33,3 +35,4 @@ export function SiteHeader() {
     </>
   );
 }
+

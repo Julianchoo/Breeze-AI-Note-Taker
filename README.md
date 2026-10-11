@@ -1,3 +1,16 @@
+# Breeze AI Note Taker
+
+Breeze graba reuniones, transcribe el audio y genera notas. La app Android permite
+grabación nativa con la pantalla bloqueada y guarda el audio localmente.
+
+- [Instalar o actualizar Android](https://breeze-ai-lime.vercel.app/android)
+- [Guía de Android: uso, arquitectura, compilación, firma y mantenimiento](docs/android.md)
+
+La documentación del starter usado como base sigue debajo; para la app Android,
+la guía enlazada es la referencia.
+
+---
+
 # Agentic Coding Starter Kit
 
 A production-oriented starter kit for building AI-powered web apps with an agentic development workflow. It gives you a working Next.js app, authentication, PostgreSQL, Drizzle ORM, AI SDK integration, shadcn/ui components, and project instructions that help coding agents plan, split, implement, review, and verify changes.
@@ -406,3 +419,4 @@ This project is licensed under the MIT License.
 - Check the repository issues: [github.com/leonvanzyl/agentic-coding-starter-kit/issues](https://github.com/leonvanzyl/agentic-coding-starter-kit/issues)
 - Review `AGENTS.md`, `CLAUDE.md`, and `DESIGN.md`
 - Open a new issue with the exact setup steps, error output, and environment details
+

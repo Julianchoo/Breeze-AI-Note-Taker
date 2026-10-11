@@ -8,9 +8,21 @@ android {
         applicationId 'com.breeze.app'
         minSdk 26
         targetSdk 35
-        versionCode 1
-        versionName '1.0.0'
+        versionCode providers.gradleProperty('breezeVersionCode').getOrElse('1').toInteger()
+        versionName providers.gradleProperty('breezeVersionName').getOrElse('1.0.0')
         buildConfigField 'String', 'BREEZE_ORIGIN', '"' + breezeOrigin + '"'
+    }
+    // CI can use a privately backed-up signing key; passwords never enter source control.
+    if (System.getenv('BREEZE_KEYSTORE_PATH')) {
+        signingConfigs {
+            distribution {
+                storeFile file(System.getenv('BREEZE_KEYSTORE_PATH'))
+                storePassword System.getenv('BREEZE_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('BREEZE_KEY_ALIAS')
+                keyPassword System.getenv('BREEZE_KEY_PASSWORD')
+            }
+        }
+        buildTypes { debug { signingConfig signingConfigs.distribution } }
     }
     buildFeatures { buildConfig true }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }

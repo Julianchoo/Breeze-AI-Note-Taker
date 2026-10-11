@@ -35,3 +35,14 @@
 
 - Always follow the UI design system when creating or reviewing components or pages.
 - Design System: @DESIGN.md
+
+
+## ANDROID MAINTENANCE
+
+- Read `docs/android.md` before changing the native app, auth handoff, recording
+  bridge, APK distribution or download page; update that guide with behavior changes.
+- Web deploys and APK releases are separate. Preserve application ID, signing key
+  and increasing version codes; never rotate a published key to bypass an update failure.
+- Preserve pending local audio. Do not recommend uninstalling without sync/export.
+- Run web checks and Android `test lintDebug assembleDebug` for relevant changes;
+  report separately what still needs verification on a real Android device.
