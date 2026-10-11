@@ -15,15 +15,44 @@ signer() {
 certificate=$(signer "$apk")
 [[ -n "$certificate" ]] || { echo 'Cannot identify APK signing certificate'; exit 1; }
 if gh release view "$tag" --repo "$repo" >/dev/null 2>&1; then
-  gh release download "$tag" --repo "$repo" --pattern breeze.apk --dir "$work"
-  previous=$(signer "$work/breeze.apk")
-  [[ "$certificate" == "$previous" ]] || {
-    echo 'Signing certificate changed. Restore the original key; refusing to break updates.'
-    exit 1
-  }
-  gh release download "$tag" --repo "$repo" --pattern android-release.json --dir "$work"
-  previous_code=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["versionCode"])' "$work/android-release.json")
-  (( version_code > previous_code )) || { echo 'Version code must increase'; exit 1; }
+  gh release view "$tag" --repo "$repo" --json assets > "$work/assets.json"
+  for asset in breeze.apk android-release.json; do
+    if python3 - "$work/assets.json" "$asset" <<'PYASSET'
+import json,sys
+sys.exit(0 if any(a['name']==sys.argv[2] for a in json.load(open(sys.argv[1]))['assets']) else 1)
+PYASSET
+    then gh release download "$tag" --repo "$repo" --pattern "$asset" --dir "$work"; fi
+  done
+  if [[ -f "$work/breeze.apk" ]]; then
+    previous=$(signer "$work/breeze.apk")
+    [[ "$certificate" == "$previous" ]] || {
+      echo 'Signing certificate changed. Restore the original key; refusing to break updates.'
+      exit 1
+    }
+  fi
+  # Empty first releases and interrupted uploads can recover, preserving every available anchor.
+  python3 - "$apk" "$work" "$certificate" "$version_code" "$ANDROID_HOME" <<'PYVERIFY'
+import hashlib,json,pathlib,re,subprocess,sys
+apk,work,certificate,code,sdk=sys.argv[1:]
+work=pathlib.Path(work); code=int(code)
+def digest(path): return hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest()
+previous_apk=work/'breeze.apk'; metadata=work/'android-release.json'
+if metadata.exists():
+    previous=json.loads(metadata.read_text())
+    if certificate != previous['signingCertificateSha256']:
+        sys.exit('Signing certificate changed. Restore the original key.')
+    old_code=int(previous['versionCode'])
+    # If the APK upload vanished, an identical binary can restore it without incrementing.
+    identical_restore=(not previous_apk.exists() and code==old_code and digest(apk)==previous['sha256'])
+    if not (code>old_code or identical_restore): sys.exit('Version code must increase')
+if previous_apk.exists():
+    badging=subprocess.check_output([sdk+'/build-tools/35.0.0/aapt','dump','badging',str(previous_apk)],text=True)
+    match=re.search(r"versionCode='(\d+)'",badging)
+    if not match: sys.exit('Cannot identify existing APK version code')
+    old_code=int(match.group(1))
+    identical_restore=(code==old_code and digest(apk)==digest(previous_apk))
+    if not (code>old_code or identical_restore): sys.exit('Version code must increase')
+PYVERIFY
 else
   # Distinguish a missing release from failed authentication/network calls.
   gh api "repos/$repo/releases?per_page=100" > "$work/releases.json"
