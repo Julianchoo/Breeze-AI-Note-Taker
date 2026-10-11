@@ -1,0 +1,22 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { createHash, randomBytes } from "node:crypto";
+import { sealHandoff, openHandoff } from "../src/lib/android-handoff.ts";
+const secret = randomBytes(32).toString("hex");
+const verifier = randomBytes(32).toString("base64url");
+const state = randomBytes(32).toString("base64url");
+const challenge = createHash("sha256").update(verifier).digest("base64url");
+const now = Date.now();
+const data = { cookie: "__Secure-better-auth.session_token=token.signature", challenge, state, expires: now + 120000, sessionExpires: now + 3600000 };
+test("PKCE redemption preserves signed session cookie", () => { assert.deepEqual(openHandoff(sealHandoff(data, secret), verifier, state, secret, now), data); });
+test("rejects wrong verifier, state, encryption secret, tampering and expiration", () => {
+ const token = sealHandoff(data, secret);
+ assert.throws(() => openHandoff(token, randomBytes(32).toString("base64url"), state, secret, now));
+ assert.throws(() => openHandoff(token, verifier, randomBytes(32).toString("base64url"), secret, now));
+ assert.throws(() => openHandoff(token, verifier, state, randomBytes(32).toString("hex"), now));
+ const bytes = Buffer.from(token, "base64url"); bytes[20] ^= 1;
+ assert.throws(() => openHandoff(bytes.toString("base64url"), verifier, state, secret, now));
+ assert.throws(() => openHandoff(token, verifier, state, secret, now + 120000));
+ assert.throws(() => openHandoff(sealHandoff({...data, sessionExpires: now}, secret), verifier, state, secret, now));
+});
+test("rejects injected Set-Cookie values", () => { assert.throws(() => openHandoff(sealHandoff({...data, cookie: data.cookie + "; Domain=other.example"}, secret), verifier, state, secret, now)); });

@@ -1,10 +1,16 @@
 "use client";
 import Link from "next/link";
+import { useSyncExternalStore } from "react";
+import { hasAndroidRecorder } from "@/lib/native-android-recorder";
+import { NativeMeetingRecorder } from "./native-meeting-recorder";
+const subscribe = () => () => {};
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { MeetingRecorder } from "./meeting-recorder";
 export function NewMeeting({ userId }: { userId: string }) {
   const router = useRouter();
+  const native = useSyncExternalStore(subscribe, hasAndroidRecorder, () => false);
+  const Recorder = native ? NativeMeetingRecorder : MeetingRecorder;
   return (
     <div className="glow-bg">
       <div className="mx-auto max-w-2xl px-4 py-8 sm:py-14">
@@ -23,8 +29,9 @@ export function NewMeeting({ userId }: { userId: string }) {
             recording you already have. Notes are written for you the moment you stop.
           </p>
         </header>
-        <MeetingRecorder userId={userId} onFinished={(id) => router.push(`/meetings/${id}`)} />
+        <Recorder userId={userId} onFinished={(id) => router.push(`/meetings/${id}`)} />
       </div>
     </div>
   );
 }
+

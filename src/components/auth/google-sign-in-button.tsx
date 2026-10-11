@@ -42,6 +42,12 @@ export function GoogleSignInButton({ className }: { className?: string }) {
     setIsPending(true);
 
     try {
+      if (window.BreezeAndroid?.signIn) {
+        window.BreezeAndroid.signIn();
+        // The system browser handles OAuth; allow retry if it is dismissed.
+        setIsPending(false);
+        return;
+      }
       const result = await signIn.social({
         provider: "google",
         callbackURL: "/meetings",
@@ -90,3 +96,4 @@ export function GoogleSignInButton({ className }: { className?: string }) {
     </div>
   );
 }
+
