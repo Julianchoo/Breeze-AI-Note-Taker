@@ -6,7 +6,7 @@ const originalFetch = globalThis.fetch;
 const bytes = new Uint8Array(2048);
 bytes.set([0x50, 0x4b, 3, 4]);
 function upstream(body: Uint8Array | string, status = 200, length = 2048, url = "https://release-assets.githubusercontent.com/test.apk") {
-  const response = new Response(body, { status, headers: { "content-length": String(length) } });
+  const response = new Response(typeof body === "string" ? body : new Uint8Array(body).buffer, { status, headers: { "content-length": String(length) } });
   Object.defineProperty(response, "url", { value: url });
   return response;
 }
