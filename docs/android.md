@@ -188,3 +188,24 @@ caducidad y PKCE. Ninguna de ellas sustituye probar en un teléfono físico:
   recuperar/exportar el fragmento parcial y confirmar que no continúa solo.
 - Exportar WAV y actualizar sobre la versión de distribución anterior; comprobar
   que siguen las grabaciones locales y la sesión. Verificar icono y descarga web.
+
+## Descarga web y diagnóstico
+
+El botón de `/android` descarga desde `/api/android/apk` en el mismo sitio:
+el servidor descarga y valida únicamente el APK público de la release fija
+`android-latest`, sin reenviar cookies ni usar credenciales de GitHub. Conserva
+`Content-Disposition: attachment`, el nombre `breeze.apk`, el tipo APK y el tamaño.
+Valida destino final, tamaño máximo de 4 MiB (por debajo del límite de respuesta de Vercel) y cabecera ZIP antes de responder;
+una release ausente o una respuesta HTML produce 502 en lugar de guardar una página
+como APK. No cachea la descarga para evitar entregar una versión vieja.
+
+La descarga alternativa sigue apuntando directamente a GitHub. Si un navegador
+integrado muestra una barra completa pero no guarda el archivo, abrir la web de
+Breeze en Chrome, entrar a Android app y usar el botón principal. Las primeras
+versiones de la app no gestionan descargas dentro del WebView: necesitan abrir
+la web en Chrome; este cambio web no puede modificar el APK ya instalado.
+
+OneDrive no reemplaza la recuperación local: solo recibe audio tras procesar una
+reunión cuando la integración del administrador está conectada. Audio pendiente
+que todavía está únicamente en el teléfono debe subirse o exportarse antes de
+desinstalar. No asumir que una grabación interrumpida ya está en OneDrive.

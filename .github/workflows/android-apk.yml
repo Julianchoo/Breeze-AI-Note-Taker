@@ -35,6 +35,7 @@ jobs:
       - run: python3 scripts/test-android-publication.py
       - run: node tests/android-handoff.test.mjs
       - run: pnpm exec tsx scripts/test-native-recorder.ts
+      - run: ANDROID_DOWNLOAD_LIVE=1 pnpm exec tsx scripts/test-android-download.ts
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm build:ci
