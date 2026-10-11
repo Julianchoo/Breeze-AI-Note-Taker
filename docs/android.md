@@ -147,9 +147,17 @@ los secretos de firma. No afirmar que las siguientes actualizaciones conservan
 los datos hasta verificar una actualización real entre dos APK con esa misma firma.
 
 
-El workflow **Android APK** verifica la web y ejecuta `test lintDebug assembleDebug`
-en Android. Los PR producen artefactos de prueba; sólo la rama `master` publica
-la distribución estable, por push o **Run workflow**. Esperar ambas verificaciones
+El workflow **Android APK** siempre verifica la web. Ejecuta
+`test lintDebug assembleDebug` en Android solamente cuando cambian `android/**`,
+el propio workflow o los scripts de detección, firma/publicación y sus pruebas.
+Compara el commit previo exacto del push o la base del PR con `HEAD`.
+**Run workflow** fuerza la compilación nativa. Los cambios únicamente web y de
+documentación pueden desplegarse y llegar al APK instalado sin compilar ni
+publicar otro APK; por ejemplo, corregir márgenes dentro del WebView.
+Cuando hay cambios nativos, los PR producen artefactos de prueba; sólo `master`
+puede publicar y requiere que la verificación web y la compilación Android pasen.
+La protección de firma sigue bloqueando nuevas publicaciones mientras falte la
+clave original. Esperar ambas verificaciones
 antes de dar por publicada una versión. `BREEZE_APP_URL` es una variable de
 repositorio con un origen HTTPS, sin ruta ni barra final; por defecto usa
 `https://breeze-ai-lime.vercel.app`.
@@ -244,3 +252,22 @@ OneDrive no reemplaza la recuperación local: solo recibe audio tras procesar un
 reunión cuando la integración del administrador está conectada. Audio pendiente
 que todavía está únicamente en el teléfono debe subirse o exportarse antes de
 desinstalar. No asumir que una grabación interrumpida ya está en OneDrive.
+
+## Barras del sistema en el APK instalado
+
+La web detecta `BreezeAndroid` y aplica `NativeAppFrame` exclusivamente dentro de
+la app. Reserva arriba y abajo al menos 32 y 48 píxeles CSS, respectivamente,
+y utiliza `env(safe-area-inset-*)` cuando el WebView informa espacios mayores.
+El encabezado sticky y las notificaciones respetan ese espacio; el pie queda
+alcanzable al desplazarse. Chrome y otros navegadores sin el bridge mantienen
+su diseño normal.
+
+Es una corrección web para el APK ya instalado, no una medición exacta del teléfono:
+la versión antigua no expone `WindowInsets` y algunos WebViews reportan cero.
+Comprobar en el dispositivo que el encabezado no invade la hora/iconos y que el
+pie se puede desplazar por encima de la navegación; probar también orientación
+horizontal y navegación por gestos. El arreglo nativo futuro debe consumir
+`WindowInsets` (o aplicar correctamente los insets al WebView), retirar esta
+reserva cuando el host gestione esos espacios y publicarse con la firma original.
+No desinstalar solo para corregir el espaciado: recargar/reabrir la app obtiene
+los cambios web sin tocar las grabaciones locales.
