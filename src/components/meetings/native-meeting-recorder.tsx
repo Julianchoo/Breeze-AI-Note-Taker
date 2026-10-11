@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Mic, Square, UploadCloud, TriangleAlert, Download } from "lucide-react";
+import { phoneAudioStatus } from "@/lib/audio-status";
+import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -12,6 +15,7 @@ import {
 export function NativeMeetingRecorder({ userId, onFinished }: {
   userId: string; onFinished: (id: string) => void;
 }) {
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [recordings, setRecordings] = useState<NativeRecording[]>([]);
   const [error, setError] = useState("");
@@ -37,7 +41,11 @@ export function NativeMeetingRecorder({ userId, onFinished }: {
       }
       for (const item of items.filter((recording) => !recording.finished)) {
         if (!mounted.current) break;
-        const finished = await syncNativeRecording(item);
+        if (mounted.current && navigator.onLine) setUploadingId(item.id);
+        const finished = await syncNativeRecording(item, (updated) => {
+          if (mounted.current) setRecordings((current) => current.map((entry) => entry.id === updated.id ? updated : entry));
+        });
+        if (mounted.current) setUploadingId(null);
         if (finished && mounted.current && !notified.current.has(item.id)) {
           notified.current.add(item.id);
           onFinishedRef.current(item.id);
@@ -50,7 +58,7 @@ export function NativeMeetingRecorder({ userId, onFinished }: {
         setReady(true);
         setError(cause instanceof Error ? cause.message : "Could not upload audio. Retry when connected.");
       }
-    } finally { refreshing.current = false; }
+    } finally { refreshing.current = false; if (mounted.current) setUploadingId(null); }
   }, [userId]);
 
   useEffect(() => {
@@ -143,13 +151,18 @@ export function NativeMeetingRecorder({ userId, onFinished }: {
         <section className="bg-card rounded-2xl border p-5 sm:p-8">
           <h2 className="font-display text-2xl">Saved on this phone</h2>
           <ul className="mt-4 space-y-4">
-            {recordings.filter((item) => item.stopped).map((item) => <li key={item.id}>
+            {recordings.filter((item) => item.stopped).map((item) => {
+              const status = phoneAudioStatus(item, uploadingId === item.id);
+              return <li key={item.id}>
               <p className="text-sm font-medium">{item.title}</p>
-              <p className="text-muted-foreground text-sm">{item.error || (item.finished ? "Uploaded · audio retained on this phone" : `${item.chunks} audio parts waiting to finish uploading`)}</p>
+              <Badge variant={item.finished ? "success" : "secondary"} className="mt-2">{status.label}</Badge>
+              <p className="text-muted-foreground mt-2 text-sm leading-6">{status.detail}</p>
+              {item.error ? <p role="alert" className="text-destructive mt-2 text-sm">{item.error}</p> : null}
+              {item.finished ? <Link href={`/meetings/${item.id}`} className="text-primary mt-2 block text-sm underline underline-offset-4">Open meeting</Link> : null}
               {item.chunks > 0 ? <Button variant="outline" size="sm" className="mt-2" onClick={() => exportAudio(item)}><Download />Export audio</Button> : null}
-            </li>)}
+            </li>; })}
           </ul>
-          {recordings.some((item) => item.stopped && !item.finished) ? <Button variant="secondary" className="mt-5" disabled={busy} onClick={() => void refresh()}><UploadCloud />Retry saving</Button> : null}
+          {recordings.some((item) => item.stopped && !item.finished) ? <Button variant="secondary" className="mt-5" disabled={busy} onClick={() => void refresh()}><UploadCloud />Retry uploading</Button> : null}
         </section>
       ) : null}
     </div>

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { archiveAudioStatus } from "@/lib/audio-status";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -901,6 +902,10 @@ export function MeetingDetailView({ id }: { id: string }) {
           )}
         </section>
 
+        <p className="text-muted-foreground mb-4 text-sm leading-6">
+          <span className={meeting.hasAudio ? "text-success" : undefined}>{archiveAudioStatus(meeting.hasAudio)}.</span>
+          {!meeting.hasAudio ? " Uploaded or processed audio is not proof of a OneDrive backup. Keep or export your phone copy until the archive is confirmed." : null}
+        </p>
         {meeting.hasAudio && <AudioPlayer ref={player} src={`${endpoint}/audio`} />}
 
         {labels.length > 0 && meeting.status !== "recording" && (
@@ -1021,3 +1026,4 @@ export function MeetingDetailView({ id }: { id: string }) {
     </div>
   );
 }
+

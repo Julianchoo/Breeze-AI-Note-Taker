@@ -51,6 +51,7 @@ jobs:
       - run: python3 scripts/test-android-build-changes.py
       - run: python3 scripts/test-android-publication.py
       - run: python3 scripts/test-android-signing.py
+      - run: python3 scripts/test-android-signing-backup.py
       - run: node tests/android-handoff.test.mjs
       - run: pnpm exec tsx scripts/test-native-recorder.ts
       - run: ANDROID_DOWNLOAD_LIVE=1 pnpm exec tsx scripts/test-android-download.ts
