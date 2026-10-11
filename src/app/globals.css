@@ -258,3 +258,39 @@
     background-image: linear-gradient(to right, transparent, var(--border) 15%, var(--border) 85%, transparent);
   }
 }
+
+
+/* Only the native bridge opts into this legacy edge-to-edge WebView workaround.
+   env() is commonly zero in the installed APK, so reserve conservative CSS-pixel
+   space. These are minimum clearances, not measured device system-bar heights. */
+.app-frame[data-native-android="true"] {
+  --native-top-inset: max(env(safe-area-inset-top, 0px), 32px);
+  --native-bottom-inset: max(env(safe-area-inset-bottom, 0px), 48px);
+  min-height: 100dvh;
+  padding-top: var(--native-top-inset);
+  padding-bottom: var(--native-bottom-inset);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+.app-frame[data-native-android="true"]::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto;
+  height: var(--native-top-inset);
+  background: var(--background);
+  pointer-events: none;
+  z-index: 50;
+}
+
+.app-frame[data-native-android="true"] .site-header {
+  top: var(--native-top-inset);
+}
+
+.app-frame[data-native-android="true"] [data-sonner-toaster][data-y-position="top"] {
+  top: calc(var(--native-top-inset) + 16px);
+}
+
+.app-frame[data-native-android="true"] [data-sonner-toaster][data-y-position="bottom"] {
+  bottom: calc(var(--native-bottom-inset) + 16px);
+}
