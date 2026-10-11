@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export function SiteFooter() {
   return (
     <footer>
@@ -11,9 +13,10 @@ export function SiteFooter() {
             </span>
             A little less to remember.
           </p>
-          <p>Your meetings, in one place.</p>
+          <Link href="/android" className="hover:text-foreground transition-colors">Download or update Android app</Link>
         </div>
       </div>
     </footer>
   );
 }
+

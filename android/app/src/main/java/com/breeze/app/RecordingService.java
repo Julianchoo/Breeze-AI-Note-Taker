@@ -36,7 +36,7 @@ public final class RecordingService extends Service {
             PendingIntent stopIntent = PendingIntent.getService(this, 0, stop, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
             Intent open = getPackageManager().getLaunchIntentForPackage(getPackageName());
             Notification.Builder notification = new Notification.Builder(this, "recording")
-                .setSmallIcon(android.R.drawable.ic_btn_speak_now).setContentTitle("Breeze está grabando")
+                .setSmallIcon(R.drawable.ic_notification).setContentTitle("Breeze está grabando")
                 .setContentText("El audio se guarda en este teléfono.").setOngoing(true)
                 .addAction(new Notification.Action.Builder(null, "Detener", stopIntent).build());
             if (open != null) notification.setContentIntent(PendingIntent.getActivity(this, 0, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));

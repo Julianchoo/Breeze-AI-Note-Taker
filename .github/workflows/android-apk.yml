@@ -2,12 +2,16 @@ name: Android APK
 
 on:
   push:
-    branches: [codex/android-background-recording]
+    branches: [master]
   pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   verify-web:
@@ -17,15 +21,18 @@ jobs:
       BETTER_AUTH_SECRET: ci-build-placeholder-secret-at-least-32-characters
       NEXT_PUBLIC_APP_URL: https://example.com
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: 10
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: python3 scripts/test-android-publication.py
       - run: node tests/android-handoff.test.mjs
       - run: pnpm exec tsx scripts/test-native-recorder.ts
       - run: pnpm lint
@@ -33,27 +40,83 @@ jobs:
       - run: pnpm build:ci
 
   build-android:
+    needs: verify-web
     runs-on: ubuntu-latest
     env:
       BREEZE_APP_URL: ${{ vars.BREEZE_APP_URL || 'https://breeze-ai-lime.vercel.app' }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         with:
           distribution: temurin
           java-version: 21
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
         with:
           packages: platform-tools
       - run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
         with:
           gradle-version: '8.11.1'
-      - run: gradle --no-daemon "-PbreezeOrigin=$BREEZE_APP_URL" test lintDebug assembleDebug
+      - name: Restore personal signing key
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.android/debug.keystore
+          key: breeze-android-personal-signing-v1
+      - name: Prepare signing
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+        env:
+          KEYSTORE_BASE64: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' && secrets.ANDROID_KEYSTORE_BASE64 || '' }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/breeze.keystore"
+            echo "BREEZE_KEYSTORE_PATH=$RUNNER_TEMP/breeze.keystore" >> "$GITHUB_ENV"
+          else
+            mkdir -p "$HOME/.android"
+            if [ ! -f "$HOME/.android/debug.keystore" ]; then
+              keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -keypass android -alias androiddebugkey -dname 'CN=Breeze Personal Android' -keyalg RSA -keysize 2048 -validity 10000
+            fi
+          fi
+      - name: Build and test Android
+        env:
+          BREEZE_KEYSTORE_PASSWORD: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' && secrets.ANDROID_KEYSTORE_PASSWORD || '' }}
+          BREEZE_KEY_ALIAS: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' && secrets.ANDROID_KEY_ALIAS || '' }}
+          BREEZE_KEY_PASSWORD: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' && secrets.ANDROID_KEY_PASSWORD || '' }}
+        run: gradle --no-daemon "-PbreezeOrigin=$BREEZE_APP_URL" "-PbreezeVersionCode=$((GITHUB_RUN_NUMBER + 100))" "-PbreezeVersionName=1.0.$GITHUB_RUN_NUMBER" test lintDebug assembleDebug
         working-directory: android
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: breeze-android-debug
           path: android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14
+
+  publish-android:
+    needs: [verify-web, build-android]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: breeze-android-debug
+          path: android-dist
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+        with:
+          packages: platform-tools
+      - run: sdkmanager 'build-tools;35.0.0'
+      - name: Publish installable APK
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/publish-android-release.sh android-dist/app-debug.apk "$((GITHUB_RUN_NUMBER + 100))" "1.0.$GITHUB_RUN_NUMBER"

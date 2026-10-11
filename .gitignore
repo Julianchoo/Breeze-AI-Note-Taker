@@ -46,3 +46,10 @@ next-env.d.ts
 public/uploads
 
 nul
+
+# Android outputs, machine configuration and private signing material
+android/.gradle/
+android/**/build/
+android/local.properties
+*.jks
+*.keystore

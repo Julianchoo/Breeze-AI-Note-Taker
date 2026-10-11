@@ -13,6 +13,7 @@ export interface NativeRecording {
 }
 interface AndroidBridge {
   signIn?(): void;
+  getAppInfo?(): string;
   exportRecording?(id: string, userId: string): string;
   startRecording(id: string, userId: string, title: string): string;
   stopRecording(): string;

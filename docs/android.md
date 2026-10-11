@@ -4,25 +4,23 @@ La aplicación Android usa el servidor web de Breeze y graba con un servicio
 nativo de micrófono. Requiere Android 8 (API 26) o posterior. No requiere publicar
 en Play Store ni guardar credenciales del servidor dentro del APK.
 
-## Obtener e instalar el APK
+## Obtener, instalar y actualizar
 
-1. Desplegar esta versión de la web en un dominio HTTPS accesible desde el celular.
-2. Si usás otro dominio, configurar la variable de repositorio `BREEZE_APP_URL` en GitHub (Settings →
-   Secrets and variables → Actions → Variables), con el origen de esa web, por
-   ejemplo `https://mi-breeze.vercel.app`, sin ruta ni barra final. El workflow usa
-   `https://breeze-ai-lime.vercel.app` por defecto, el dominio registrado en la
-   documentación de Breeze. Ese servidor debe tener desplegados estos cambios.
-3. Ejecutar **Actions → Android APK → Run workflow**. También se ejecuta en PR y
-   al subir cambios a `codex/android-background-recording`.
-4. Descargar el artefacto `breeze-android-debug`, extraer `app-debug.apk` y abrirlo
-   en Android. Autorizar la instalación desde esa fuente cuando Android lo pida.
+Abrir [Breeze → Android](https://breeze-ai-lime.vercel.app/android), también
+accesible desde el encabezado de la web. El botón descarga directamente
+[`breeze.apk`](https://github.com/Julianchoo/Breeze-AI-Note-Taker/releases/download/android-latest/breeze.apk),
+sin ZIP ni inicio de sesión en GitHub. Abrirlo y autorizar la instalación desde
+esa fuente cuando Android lo pida. La página muestra la versión instalada cuando se abre desde la app y
+permite descargar otra vez para actualizar; Android pide confirmar la instalación.
+No es una actualización automática ni una publicación en Play Store.
 
-El APK es de depuración y está firmado con una clave de desarrollo. No es una
-versión para Play Store. La clave de CI puede cambiar entre compilaciones: si
-Android rechaza una actualización por firma incompatible, **no desinstalar si
-quedan grabaciones locales pendientes**. Sincronizarlas primero; desinstalar
-borra los datos locales. Para actualizaciones personales estables, usar una clave
-de firma persistente o compilar siempre con el mismo entorno local.
+**Migración desde el primer APK:** el artefacto inicial de Actions usaba una firma
+aleatoria de CI que no se conserva. La primera versión de distribución tiene otra
+firma: Android rechaza su instalación sobre aquella versión. Antes de
+hacer una única desinstalación/reinstalación, sincronizar todo y exportar los WAV
+pendientes con **Export audio**. Desinstalar o borrar datos elimina el audio privado y
+la sesión. Las versiones de distribución siguientes conservan su firma para
+actualizar sobre la instalada sin borrar datos.
 
 ## Grabar y recuperar audio
 
@@ -49,7 +47,7 @@ válida y la misma cuenta para sincronizar. Mantener el teléfono con espacio li
 y abrir Breeze después de grabar para completar la sincronización.
 
 Las grabaciones sincronizadas también quedan guardadas en el teléfono. En
-**Saved recordings**, usar **Save WAV** para exportar una copia a una ubicación
+**Saved on this phone**, usar **Export audio** para exportar una copia a una ubicación
 elegida en el selector de archivos de Android. Los originales privados se
 conservan hasta desinstalar la aplicación o borrar sus datos; controlar el espacio
 disponible y guardar copias antes de hacerlo.
@@ -67,6 +65,41 @@ mediante un token cifrado de corta duración (120 segundos) protegido con PKCE. 
 requiere desplegar también las nuevas rutas de autenticación de la web antes de
 usar el APK; compilarlo no actualiza el servidor. Breeze tiene habilitado el inicio
 de sesión con Google; correo y contraseña están deshabilitados.
+
+## Arquitectura y archivos para mantenimiento
+
+Es una aplicación **nativa Java con WebView**, no Capacitor ni una PWA. La web
+remota provee la interfaz y el servidor existente; `window.BreezeAndroid` conecta
+el grabador web al servicio nativo. Desplegar cambios de interfaz o API normalmente
+no exige reinstalar. Cambiar Java, permisos/manifest, recursos (incluido el icono)
+o configuración nativa sí exige publicar e instalar otro APK.
+
+| Archivo | Responsabilidad |
+|---|---|
+| `android/app/src/main/java/com/breeze/app/MainActivity.java` | WebView, origen HTTPS, puente nativo, permisos, login y exportación |
+| `android/app/src/main/java/com/breeze/app/RecordingService.java` | Servicio de micrófono en primer plano, notificación y wake lock |
+| `android/app/src/main/java/com/breeze/app/RecordingStore.java` | Archivos privados, metadatos, recibos de subida y recuperación |
+| `android/app/src/main/java/com/breeze/app/WavFile.java` | Escritura y reparación de WAV PCM mono, 16 bits, 16 kHz |
+| `android/app/src/main/AndroidManifest.xml`, `res/` | Permisos, deep link, servicio e iconos del launcher/notificación |
+| `src/app/icon.svg`, `android/app/src/main/res/drawable/ic_launcher_foreground.xml` | Favicon y su versión vectorial nativa; mantener ambas marcas coordinadas |
+| `src/lib/native-android-recorder.ts` | Puente TypeScript y sincronización autenticada de fragmentos |
+| `src/components/meetings/native-meeting-recorder.tsx` | UI del grabador y grabaciones guardadas |
+| `src/app/android/connect/page.tsx`, `src/app/api/android/session/route.ts`, `src/lib/android-handoff.ts` | Login en navegador y transferencia de sesión cifrada/PKCE |
+| `src/app/api/meetings/[id]/chunks/route.ts` | Recepción de fragmentos de audio por la API existente |
+| `src/app/android/page.tsx` | Página pública para instalar/actualizar |
+| `.github/workflows/android-apk.yml`, `scripts/publish-android-release.sh` | Verificaciones, APK firmado y publicación estable |
+
+El servicio escribe fragmentos WAV de hasta 120 segundos y sincroniza el archivo
+en disco aproximadamente cada segundo. Recupera los fragmentos parciales guardados
+tras una interrupción; no puede recuperar audio que nunca se escribió. La captura
+no depende de la red. La subida ocurre al abrir el grabador con sesión válida;
+no existe un uploader nativo que garantice sincronización con la app cerrada.
+
+Las claves de Soniox, OpenAI, base de datos, almacenamiento y OAuth siguen en el
+servidor. El APK contiene el origen web y una sesión del usuario, nunca las claves
+de proveedor. El login usa el navegador del sistema, retorno a la app y un token
+AES-GCM de 120 segundos ligado a PKCE y al estado. Cambiar el dominio exige revisar
+la configuración de auth y que las rutas Android estén desplegadas.
 
 ## Compilar localmente
 
@@ -87,3 +120,71 @@ El workflow también ejecuta `pnpm lint`, `pnpm typecheck` y `pnpm build:ci` par
 verificar la web sin ejecutar migraciones ni usar credenciales de producción.
 La compilación y los tests no sustituyen comprobar la grabación, la recuperación
 y la sincronización en un teléfono físico.
+
+## Publicación y firma persistente
+
+El workflow **Android APK** verifica la web y ejecuta `test lintDebug assembleDebug`
+en Android. Los PR producen artefactos de prueba; sólo la rama `master` publica
+la distribución estable, por push o **Run workflow**. Esperar ambas verificaciones
+antes de dar por publicada una versión. `BREEZE_APP_URL` es una variable de
+repositorio con un origen HTTPS, sin ruta ni barra final; por defecto usa
+`https://breeze-ai-lime.vercel.app`.
+
+La release `android-latest` mantiene `breeze.apk` y `android-release.json` (versión,
+commit, fecha, SHA-256 del archivo y certificado de firma). El `versionCode` debe
+crecer en cada publicación. El script rechaza un código que no aumenta o un
+certificado distinto al ya publicado: **restaurar la clave original**, no borrar
+la release ni generar otra para eludir esa comprobación.
+
+CI conserva `~/.android/debug.keystore` en la caché
+`breeze-android-personal-signing-v1`. Si no hay caché ni secretos, genera una clave
+personal debug (alias `androiddebugkey`, contraseñas de desarrollo `android`).
+`versionCode` usa `github.run_number + 100`; `versionName`, `1.0.<run_number>`.
+No reiniciar esa numeración ni usar códigos locales para la distribución sin
+comprobar el manifiesto publicado.
+
+Para respaldar/restaurar la firma o usar una clave explícita, configurar los
+secretos de repositorio `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
+`ANDROID_KEY_ALIAS` y `ANDROID_KEY_PASSWORD`. El primero contiene el keystore en
+base64; los otros identifican la entrada y sus contraseñas. Respaldar **la misma
+clave que firmó la distribución**, no sustituirla por una nueva. Para compilación
+local con esa clave, `build.gradle` acepta `BREEZE_KEYSTORE_PATH`,
+`BREEZE_KEYSTORE_PASSWORD`, `BREEZE_KEY_ALIAS` y `BREEZE_KEY_PASSWORD` como variables
+de entorno; pasar `-PbreezeVersionCode=N -PbreezeVersionName=X` a Gradle cuando
+corresponda. No publicar compilaciones locales por encima de CI sin ajustar antes
+la estrategia de numeración.
+
+La clave privada necesita una copia de respaldo fuera del repositorio. Una caché
+de Actions no reemplaza ese respaldo: puede desaparecer por presión de espacio o
+tras siete días sin uso. Respaldar/configurar la firma persistente antes de que
+se elimine la caché; sin la clave original, las siguientes publicaciones quedan
+bloqueadas para preservar las actualizaciones de las apps instaladas. Nunca commitear
+keystores, contraseñas, `.env` ni imprimir sus contenidos en logs. El APK de uso
+personal conserva el tipo debug; la firma persistente permite mantenerlo sin
+rotaciones accidentales, pero no lo convierte en una release para Play Store.
+
+## Comprobaciones antes de publicar
+
+```sh
+node tests/android-handoff.test.mjs
+python3 scripts/test-android-publication.py
+pnpm exec tsx scripts/test-native-recorder.ts
+pnpm lint
+pnpm typecheck
+pnpm build:ci
+# Desde android/ con Java/SDK/Gradle configurados:
+gradle -PbreezeOrigin=https://breeze-ai-lime.vercel.app test lintDebug assembleDebug
+```
+
+`build:ci` no ejecuta migraciones; `pnpm build` sí. Los tests nativos incluyen WAV;
+las comprobaciones TypeScript cubren sincronización y el handoff prueba su validez,
+caducidad y PKCE. Ninguna de ellas sustituye probar en un teléfono físico:
+
+- Login Google con retorno a la app y permisos de micrófono/notificaciones.
+- Grabar más de dos minutos, bloquear pantalla, cambiar de app y detener desde
+  la notificación; escuchar el WAV y verificar todos los fragmentos en la reunión.
+- Grabar sin conexión y reabrir el grabador con red; comprobar subida y notas.
+- Interrumpir con llamada, revocar permiso, forzar cierre o reiniciar; reabrir,
+  recuperar/exportar el fragmento parcial y confirmar que no continúa solo.
+- Exportar WAV y actualizar sobre la versión de distribución anterior; comprobar
+  que siguen las grabaciones locales y la sesión. Verificar icono y descarga web.
