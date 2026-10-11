@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { openHandoff, sealHandoff, validChallenge, validState } from "@/lib/android-handoff";
+import { auth } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export async function POST(request: NextRequest) {

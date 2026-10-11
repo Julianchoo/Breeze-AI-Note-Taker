@@ -1,12 +1,15 @@
 "use client";
-import Link from "next/link";
+
 import { useSyncExternalStore } from "react";
-import { hasAndroidRecorder } from "@/lib/native-android-recorder";
-import { NativeMeetingRecorder } from "./native-meeting-recorder";
-const subscribe = () => () => {};
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
+import { hasAndroidRecorder } from "@/lib/native-android-recorder";
 import { MeetingRecorder } from "./meeting-recorder";
+import { NativeMeetingRecorder } from "./native-meeting-recorder";
+
+const subscribe = () => () => {};
+
 export function NewMeeting({ userId }: { userId: string }) {
   const router = useRouter();
   const native = useSyncExternalStore(subscribe, hasAndroidRecorder, () => false);
@@ -25,8 +28,9 @@ export function NewMeeting({ userId }: { userId: string }) {
           <p className="eyebrow">New recording</p>
           <h1 className="font-display mt-2 text-4xl sm:text-5xl">Ready when you are</h1>
           <p className="text-muted-foreground mt-3 text-base leading-relaxed">
-            Name the meeting, pick what Breeze should listen to, then press record — or upload a
-            recording you already have. Notes are written for you the moment you stop.
+            {native
+              ? "Name your meeting and record with your phone’s microphone, even while the screen is locked. Reopen this screen after recording to upload saved audio and create your notes."
+              : "Name the meeting, pick what Breeze should listen to, then press record — or upload a recording you already have. Notes are written for you the moment you stop."}
           </p>
         </header>
         <Recorder userId={userId} onFinished={(id) => router.push(`/meetings/${id}`)} />

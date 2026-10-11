@@ -2,8 +2,8 @@
 
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { signIn, useSession } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
+import { signIn, useSession } from "@/lib/auth-client";
 
 function Connect() {
   const params = useSearchParams();

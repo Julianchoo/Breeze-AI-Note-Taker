@@ -48,6 +48,12 @@ conexión, permanecen locales para reintentar. La aplicación necesita una sesi�
 válida y la misma cuenta para sincronizar. Mantener el teléfono con espacio libre
 y abrir Breeze después de grabar para completar la sincronización.
 
+Las grabaciones sincronizadas también quedan guardadas en el teléfono. En
+**Saved recordings**, usar **Save WAV** para exportar una copia a una ubicación
+elegida en el selector de archivos de Android. Los originales privados se
+conservan hasta desinstalar la aplicación o borrar sus datos; controlar el espacio
+disponible y guardar copias antes de hacerlo.
+
 Las llamadas, la revocación del permiso, el reinicio, **Forzar detención** o ciertas
 restricciones del fabricante pueden interrumpir la captura. No se reanuda el
 micrófono automáticamente tras un reinicio o un cierre forzado. Al abrir de nuevo,

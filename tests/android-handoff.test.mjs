@@ -1,6 +1,6 @@
-import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash, randomBytes } from "node:crypto";
+import test from "node:test";
 import { sealHandoff, openHandoff } from "../src/lib/android-handoff.ts";
 const secret = randomBytes(32).toString("hex");
 const verifier = randomBytes(32).toString("base64url");

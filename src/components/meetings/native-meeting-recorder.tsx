@@ -55,7 +55,10 @@ export function NativeMeetingRecorder({ userId, onFinished }: {
 
   useEffect(() => {
     mounted.current = true;
-    void refresh();
+    // Subscribe first; read bridge state asynchronously after React commits.
+    queueMicrotask(() => {
+      if (mounted.current) void refresh();
+    });
     const timer = setInterval(() => void refresh(), 3000);
     const retry = () => void refresh();
     document.addEventListener("visibilitychange", retry);

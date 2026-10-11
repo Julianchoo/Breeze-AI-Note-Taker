@@ -163,16 +163,36 @@ public class MainActivity extends Activity {
                 if (cookies == null || cookies.isEmpty()) throw new IllegalStateException("Sign-in returned no session. Try again.");
                 java.util.List<String> received = cookies;
                 runOnUiThread(() -> {
-                    CookieManager manager = CookieManager.getInstance();
-                    // Remove a stale cached session before adopting the browser's account.
-                    manager.setCookie(breezeOrigin, "better-auth.session_data=; Path=/; Max-Age=0; Secure");
-                    manager.setCookie(breezeOrigin, "__Secure-better-auth.session_data=; Path=/; Max-Age=0; Secure");
-                    for (String cookie : received) manager.setCookie(breezeOrigin, cookie);
-                    manager.flush(); if (!isFinishing() && !isDestroyed()) web.loadUrl(breezeOrigin + "/meetings");
+                    // Apply cache removals and the new session in order, waiting for each
+                    // CookieManager callback before loading authenticated content.
+                    java.util.ArrayList<String> updates = new java.util.ArrayList<>();
+                    updates.add("better-auth.session_data=; Path=/; Max-Age=0; Secure");
+                    updates.add("__Secure-better-auth.session_data=; Path=/; Max-Age=0; Secure");
+                    updates.addAll(received);
+                    applySessionCookies(updates, 0);
                 });
             } catch (Exception error) { runOnUiThread(() -> Toast.makeText(this, "Sign-in failed or expired. Return to Breeze and try again.", Toast.LENGTH_LONG).show()); }
             finally { if (connection != null) connection.disconnect(); }
         }, "breeze-sign-in").start();
+    }
+    private void applySessionCookies(java.util.List<String> cookies, int index) {
+        if (isFinishing() || isDestroyed()) {
+            Toast.makeText(getApplicationContext(), "Reopen Breeze and sign in again.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        CookieManager manager = CookieManager.getInstance();
+        if (index == cookies.size()) {
+            manager.flush();
+            web.loadUrl(breezeOrigin + "/meetings");
+            return;
+        }
+        manager.setCookie(breezeOrigin, cookies.get(index), accepted -> {
+            if (!Boolean.TRUE.equals(accepted)) {
+                Toast.makeText(this, "Could not save the sign-in session. Try again.", Toast.LENGTH_LONG).show();
+                return;
+            }
+            applySessionCookies(cookies, index + 1);
+        });
     }
     private interface Action { JSONObject run() throws Exception; }
     private String result(Action action) {
