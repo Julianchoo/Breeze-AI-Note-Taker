@@ -15,6 +15,7 @@ interface AndroidBridge {
   signIn?(): void;
   getAppInfo?(): string;
   exportRecording?(id: string, userId: string): string;
+  checkRecordingAvailable?(): string;
   startRecording(id: string, userId: string, title: string): string;
   stopRecording(): string;
   getRecordings(userId: string): string;
@@ -51,6 +52,11 @@ export function nativeRecordings(userId: string) {
 }
 export function nativeRecording(id: string, userId: string) {
   return parseNativeResult<{recording: NativeRecording}>(bridge().getRecording(id, userId)).recording;
+}
+/** Throws when the phone cannot record now (e.g. during a call); older APKs skip the check. */
+export function checkNativeRecordingAvailable() {
+  const recorder = bridge();
+  if (recorder.checkRecordingAvailable) parseNativeResult(recorder.checkRecordingAvailable());
 }
 export function startNativeRecording(id: string, userId: string, title: string) {
   return parseNativeResult<{recording: NativeRecording}>(bridge().startRecording(id, userId, title)).recording;
