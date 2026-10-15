@@ -75,6 +75,11 @@ public final class RecordingService extends Service {
             short[] buffer = new short[4000];
             long lastSync = SystemClock.elapsedRealtime();
             long silentSince = 0;
+            AudioManager audio = getSystemService(AudioManager.class);
+            CaptureGuards.Sustained callGuard = new CaptureGuards.Sustained(CaptureGuards.CALL_GRACE_MS);
+            CaptureGuards.SilenceDetector silence = new CaptureGuards.SilenceDetector(WavFile.RATE, CaptureGuards.SILENCE_SECONDS);
+            long lastModeCheck = 0;
+            boolean callMode = false;
             while (!stopping && total < maximum) {
                 if (wav == null) { target = store.chunkFile(id, index); wav = new WavFile(target); }
                 int wanted = (int) Math.min(buffer.length, Math.min(chunkSamples - wav.samples(), maximum - total));
@@ -86,10 +91,15 @@ public final class RecordingService extends Service {
                     AudioRecordingConfiguration config = recorder.getActiveRecordingConfiguration();
                     if (config != null && config.isClientSilenced()) {
                         if (silentSince == 0) silentSince = SystemClock.elapsedRealtime();
-                        if (SystemClock.elapsedRealtime() - silentSince > 3000) throw new IllegalStateException("Otra aplicación o una llamada interrumpió el micrófono");
+                        if (SystemClock.elapsedRealtime() - silentSince > 3000) throw new IllegalStateException(inCall(audio) ? CaptureGuards.CALL_INTERRUPTED : "Otra aplicación o una llamada interrumpió el micrófono");
                     } else silentSince = 0;
                 }
                 wav.write(buffer, count); total += count;
+                // Checked after writing so audio captured up to the stop is kept.
+                long now = SystemClock.elapsedRealtime();
+                if (now - lastModeCheck >= 1000) { callMode = inCall(audio); lastModeCheck = now; }
+                if (callGuard.update(callMode, now)) throw new IllegalStateException(CaptureGuards.CALL_INTERRUPTED);
+                if (silence.feed(buffer, count)) throw new IllegalStateException(inCall(audio) ? CaptureGuards.CALL_INTERRUPTED : CaptureGuards.DIGITAL_SILENCE);
                 if (SystemClock.elapsedRealtime() - lastSync >= 1000) { wav.sync(); lastSync = SystemClock.elapsedRealtime(); }
                 if (wav.samples() == chunkSamples) {
                     long samples = wav.samples(); wav.close(); wav = null;
@@ -116,5 +126,6 @@ public final class RecordingService extends Service {
             });
         }
     }
+    private static boolean inCall(AudioManager audio) { return audio != null && CaptureGuards.isCallMode(audio.getMode()); }
     @Override public void onDestroy() { stopping = true; super.onDestroy(); }
 }

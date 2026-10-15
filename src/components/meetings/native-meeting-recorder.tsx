@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Mic, Square, UploadCloud, TriangleAlert, Download } from "lucide-react";
 import { phoneAudioStatus } from "@/lib/audio-status";
 import { Badge } from "@/components/ui/badge";
@@ -8,9 +8,10 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  checkedNativeRequest, exportNativeRecording, nativeRecordings, startNativeRecording, stopNativeRecording,
+  checkNativeRecordingAvailable, checkedNativeRequest, exportNativeRecording, nativeRecordings, startNativeRecording, stopNativeRecording,
   syncNativeRecording, type NativeRecording,
 } from "@/lib/native-android-recorder";
+import { cn } from "@/lib/utils";
 
 export function NativeMeetingRecorder({ userId, onFinished }: {
   userId: string; onFinished: (id: string) => void;
@@ -86,6 +87,8 @@ export function NativeMeetingRecorder({ userId, onFinished }: {
     setBusy(true);
     setActionError("");
     try {
+      // Check before creating the server meeting so a refused start leaves nothing behind.
+      checkNativeRecordingAvailable();
       const name = title.trim() || "Untitled meeting";
       const result = await checkedNativeRequest(await fetch("/api/meetings", {
         method: "POST", headers: {"Content-Type": "application/json"},
@@ -142,10 +145,10 @@ export function NativeMeetingRecorder({ userId, onFinished }: {
           {busy ? "Please wait…" : active ? "Stop & save meeting" : "Start recording"}
         </Button>
         <p className="text-muted-foreground mt-4 text-sm leading-6">
-          Audio uploads while this screen is open. Reopen it after recording to upload remaining audio and create your notes. Keep the app’s microphone notification enabled.
+          Audio uploads while this screen is open. Reopen it after recording to upload remaining audio and create your notes. Keep the app’s microphone notification enabled. Phone calls can’t be recorded from this same phone.
         </p>
-        {active?.error ? <p role="alert" className="text-destructive mt-4 text-sm">{active.error}</p> : null}
-        {error || actionError ? <div role="alert" className="text-destructive border-destructive/25 bg-destructive/5 mt-4 flex gap-2 rounded-xl border p-4 text-sm"><TriangleAlert className="size-4 shrink-0" /><span>{actionError || error} Saved audio stays on your phone.</span></div> : null}
+        {active?.error ? <InlineAlert className="mt-4">{active.error}</InlineAlert> : null}
+        {error || actionError ? <InlineAlert className="mt-4">{actionError || error} Saved audio stays on your phone.</InlineAlert> : null}
       </section>
       {recordings.some((item) => item.stopped) ? (
         <section className="bg-card rounded-2xl border p-5 sm:p-8">
@@ -157,7 +160,7 @@ export function NativeMeetingRecorder({ userId, onFinished }: {
               <p className="text-sm font-medium">{item.title}</p>
               <Badge variant={item.finished ? "success" : "secondary"} className="mt-2">{status.label}</Badge>
               <p className="text-muted-foreground mt-2 text-sm leading-6">{status.detail}</p>
-              {item.error ? <p role="alert" className="text-destructive mt-2 text-sm">{item.error}</p> : null}
+              {item.error ? <InlineAlert className="mt-2">{item.error}</InlineAlert> : null}
               {item.finished ? <Link href={`/meetings/${item.id}`} className="text-primary mt-2 block text-sm underline underline-offset-4">Open meeting</Link> : null}
               {item.chunks > 0 ? <Button variant="outline" size="sm" className="mt-2" onClick={() => exportAudio(item)}><Download />Export audio</Button> : null}
             </li>; })}
@@ -165,6 +168,15 @@ export function NativeMeetingRecorder({ userId, onFinished }: {
           {recordings.some((item) => item.stopped && !item.finished) ? <Button variant="secondary" className="mt-5" disabled={busy} onClick={() => void refresh()}><UploadCloud />Retry uploading</Button> : null}
         </section>
       ) : null}
+    </div>
+  );
+}
+
+/** Interruption and start errors carry an icon so status is never color-only. */
+function InlineAlert({ className, children }: { className?: string; children: ReactNode }) {
+  return (
+    <div role="alert" className={cn("text-destructive border-destructive/25 bg-destructive/5 flex gap-2 rounded-xl border p-4 text-sm", className)}>
+      <TriangleAlert className="mt-0.5 size-4 shrink-0" /><span>{children}</span>
     </div>
   );
 }
