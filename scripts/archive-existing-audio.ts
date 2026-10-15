@@ -7,7 +7,7 @@ async function main() {
   // Imported after .env is loaded: db.ts reads POSTGRES_URL at import time.
   const { and, eq, isNull, lt, or } = await import("drizzle-orm");
   const { db } = await import("../src/lib/db");
-  const { isAdmin, releaseAudio } = await import("../src/lib/meetings");
+  const { archiveAudio, isAdmin, releaseAudio } = await import("../src/lib/meetings");
   const { meetingChunks, meetings } = await import("../src/lib/schema");
   const rows = await db.select().from(meetings);
   const chunks = await db.select().from(meetingChunks);
@@ -22,7 +22,9 @@ async function main() {
     if (!apply) { totals[admin ? "archived" : "deleted"]++; continue; }
     try {
       // Skip meetings the app is processing right now.
-      await releaseAudio(row, parts, admin, and(eq(meetings.id, row.id), or(isNull(meetings.leaseUntil), lt(meetings.leaseUntil, new Date()))));
+      const fence = and(eq(meetings.id, row.id), or(isNull(meetings.leaseUntil), lt(meetings.leaseUntil, new Date())));
+      if (admin) await archiveAudio(row, parts, fence);
+      await releaseAudio(parts, fence);
       totals[admin ? "archived" : "deleted"]++;
     } catch (error) { totals.failed++; console.error(`failed   ${row.id}`, error instanceof Error ? error.message : error); }
   }

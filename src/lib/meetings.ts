@@ -238,10 +238,16 @@ export async function processMeeting(id: string, userId: string) {
   }
   let cost = 0;
   try {
-    await requireBudget(userId);
     const chunks = await db.select().from(meetingChunks).where(eq(meetingChunks.meetingId, id)).orderBy(asc(meetingChunks.index));
     validateChunkSequence(chunks, row.expectedChunks ?? 0);
     const pending = chunks.filter(c => c.segments === null).length, fenced = and(scope(id, userId), eq(meetings.leaseToken, token));
+    // The admin's recording is saved to OneDrive before anything else can fail, across as many calls as the upload needs.
+    if (!row.onedriveItemId && chunks.some(c => c.blobPath) && await isAdmin(userId)) {
+      await archiveAudio(row, chunks, fenced, Date.now() + 200_000);
+      await db.update(meetings).set({ leaseToken: null, leaseUntil: null, failures: 0, error: null, updatedAt: new Date() }).where(fenced);
+      return { meeting: visible(await owned(id, userId)), remaining: 1 };
+    }
+    await requireBudget(userId);
     // Transcription is one Soniox job for the whole meeting; each call starts it, polls it once, or saves its result.
     if (pending) {
       let fileId = row.sonioxFileId, transcriptionId = row.sonioxTranscriptionId, parts: TranscriptSegment[][] | undefined;
@@ -283,15 +289,8 @@ export async function processMeeting(id: string, userId: string) {
       // After the transcript is saved, one more call writes the summary.
       return { meeting: visible(await owned(id, userId)), remaining: parts ? 1 : pending, busy: !parts };
     }
-    // Transcript saved: the audio leaves the server. The admin's is archived to OneDrive first, across as many calls as the upload needs.
-    if (chunks.some(c => c.blobPath)) {
-      const admin = await isAdmin(userId);
-      const released = await releaseAudio(row, chunks, admin, fenced, Date.now() + 200_000);
-      if (admin || !released) {
-        await db.update(meetings).set({ leaseToken: null, leaseUntil: null, failures: 0, error: null, updatedAt: new Date() }).where(fenced);
-        return { meeting: visible(await owned(id, userId)), remaining: 1 };
-      }
-    }
+    // Transcript saved: the audio leaves the server (the admin's is already in OneDrive).
+    await releaseAudio(chunks, fenced);
     let summary: string | null = row.summary, detectedLanguage = row.detectedLanguage, aiTitle: string | undefined, speakerSuggestions = row.speakerSuggestions;
     const all = chunks.flatMap(c => c.segments ?? []), labels = new Set(all.map(s => s.speaker));
     // Merge consecutive same-speaker segments: fewer tokens, easier to follow for the model. Prompt only; stored segments are untouched.
@@ -338,23 +337,28 @@ export async function processMeeting(id: string, userId: string) {
     throw new MeetingError(message, error instanceof MeetingError ? error.status : 502);
   }
 }
+const lost = () => new MeetingError("Processing was resumed elsewhere. Refresh to continue.", 409);
 /**
- * Removes a transcribed meeting's audio from Blob; the admin's is first archived to OneDrive as one WAV.
+ * Copies the admin's audio from Blob to OneDrive as one WAV and saves the item id; Blob keeps it until releaseAudio.
  * `fence` guards every write (the processing lease). Returns false when `deadline` hit before the upload finished.
  */
-export async function releaseAudio(row: typeof meetings.$inferSelect, chunks: (typeof meetingChunks.$inferSelect)[], admin: boolean, fence: SQL | undefined, deadline = Infinity) {
+export async function archiveAudio(row: typeof meetings.$inferSelect, chunks: (typeof meetingChunks.$inferSelect)[], fence: SQL | undefined, deadline = Infinity) {
   const stored = chunks.filter(c => c.blobPath);
-  if (!stored.length) return true;
-  const lost = () => new MeetingError("Processing was resumed elsewhere. Refresh to continue.", 409);
-  const itemId = admin && await archiveToOneDrive({ userId: row.userId, name: archiveName(row.createdAt, row.title), parts: stored.map(c => ({ path: c.blobPath!, dataBytes: partDataBytes(c.durationSeconds) })), read: audioBytes, uploadUrl: row.onedriveUploadUrl, deadline,
+  if (row.onedriveItemId || !stored.length) return true;
+  const itemId = await archiveToOneDrive({ userId: row.userId, name: archiveName(row.createdAt, row.title), parts: stored.map(c => ({ path: c.blobPath!, dataBytes: partDataBytes(c.durationSeconds) })), read: audioBytes, uploadUrl: row.onedriveUploadUrl, deadline,
     save: async url => { if (!(await db.update(meetings).set({ onedriveUploadUrl: url }).where(fence).returning({ id: meetings.id })).length) throw lost(); } });
-  if (admin && !itemId) return false;
+  if (!itemId) return false;
+  if (!(await db.update(meetings).set({ onedriveUploadUrl: null, onedriveItemId: itemId }).where(fence).returning({ id: meetings.id })).length) throw lost();
+  return true;
+}
+/** Deletes a transcribed meeting's audio from Blob. `fence` guards the write (the processing lease). */
+export async function releaseAudio(chunks: (typeof meetingChunks.$inferSelect)[], fence: SQL | undefined) {
+  const stored = chunks.filter(c => c.blobPath);
+  if (!stored.length) return;
   await db.transaction(async tx => {
     if (!(await tx.select({ id: meetings.id }).from(meetings).where(fence).for("update")).length) throw lost();
     await tx.update(meetingChunks).set({ blobPath: null }).where(inArray(meetingChunks.id, stored.map(c => c.id)));
-    await tx.update(meetings).set({ onedriveUploadUrl: null, ...(itemId && { onedriveItemId: itemId }) }).where(eq(meetings.id, row.id));
     // Inside the transaction: a failed delete rolls the paths back, so a retry deletes again (del is idempotent).
     await del(stored.map(c => c.blobPath!));
   });
-  return true;
 }

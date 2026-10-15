@@ -355,6 +355,8 @@ export function MeetingDetailView({ id }: { id: string }) {
   const { meeting, chunks, segments } = detail;
   /* The whole recording is transcribed in one job, so there is no per-part progress to show. */
   const transcribed = chunks.every((chunk) => chunk.status === "ready");
+  /* The admin's audio is saved to OneDrive before transcription starts; hasAudio turns true once it is. */
+  const archiving = isAdmin && !transcribed && !meeting.hasAudio;
   const labels = [...new Set(segments.map((segment) => segment.speaker))];
   const summary = meeting.summary && relabel(meeting.summary, labels, meeting.speakerNames);
   /* Copies as HTML (Notion and Google Docs turn it into real headings/lists) with a Markdown plain-text fallback. */
@@ -752,23 +754,34 @@ export function MeetingDetailView({ id }: { id: string }) {
                 className="bg-primary/70 size-2 shrink-0 animate-pulse rounded-full"
                 aria-hidden="true"
               />
-              {transcribed ? "Writing your summary" : "Transcribing the recording"}
+              {transcribed
+                ? "Writing your summary"
+                : archiving
+                  ? "Saving audio to OneDrive"
+                  : "Transcribing the recording"}
             </h2>
-            <ProcessingProgress
-              key={String(transcribed)}
-              audioSeconds={
-                meeting.durationSeconds ||
-                chunks.reduce((sum, chunk) => sum + chunk.durationSeconds, 0)
-              }
-              transcribed={transcribed}
-            />
-            <p className="text-muted-foreground mt-2 text-xs">
-              Estimated from the recording length.
-            </p>
+            {/* No estimate while archiving: the transcription estimate starts once the audio is saved. */}
+            {!archiving && (
+              <>
+                <ProcessingProgress
+                  key={String(transcribed)}
+                  audioSeconds={
+                    meeting.durationSeconds ||
+                    chunks.reduce((sum, chunk) => sum + chunk.durationSeconds, 0)
+                  }
+                  transcribed={transcribed}
+                />
+                <p className="text-muted-foreground mt-2 text-xs">
+                  Estimated from the recording length.
+                </p>
+              </>
+            )}
             <p className="text-muted-foreground mt-4 max-w-prose text-sm leading-6">
               {transcribed
                 ? "The transcript is ready."
-                : "The whole recording is transcribed at once; longer recordings take longer."}{" "}
+                : archiving
+                  ? "Your recording is saved to OneDrive first, then transcribed."
+                  : "The whole recording is transcribed at once; longer recordings take longer."}{" "}
               Keep this page open to continue; reopen it any time to resume where it left off.
             </p>
           </section>

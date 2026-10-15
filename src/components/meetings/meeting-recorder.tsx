@@ -168,6 +168,25 @@ export function MeetingRecorder({
         );
       recording.stopped = true;
       await saveRecording(recording);
+      // A local copy can outlive its meeting (tab closed after the server finished it, or meeting deleted);
+      // the server then rejects every part forever, so settle the local copy instead of retrying.
+      const current = await fetch(`/api/meetings/${recording.id}`);
+      if (current.status === 404) {
+        await deleteRecording(userId, recording.id);
+        setRecoveries((items) => items.filter((row) => row.id !== recording.id));
+        active.current = null;
+        setUploadStatus("");
+        setError("That recording's meeting no longer exists, so its local copy was removed.");
+        setPhase("idle");
+        return;
+      }
+      if ((await checked(current))?.meeting?.status !== "recording") {
+        recording.finished = true;
+        await saveRecording(recording);
+        active.current = null;
+        if (mounted.current) onFinished(recording.id);
+        return;
+      }
       await upload(recording);
       await checked(
         await fetch(`/api/meetings/${recording.id}`, {

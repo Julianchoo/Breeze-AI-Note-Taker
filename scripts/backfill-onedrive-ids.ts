@@ -12,7 +12,7 @@ async function main() {
   const { FOLDER, archiveName, graphGet } = await import("../src/lib/onedrive");
   const { meetingChunks, meetings } = await import("../src/lib/schema");
   const rows = await db.select({ id: meetings.id, userId: meetings.userId, title: meetings.title, createdAt: meetings.createdAt }).from(meetings).where(isNull(meetings.onedriveItemId));
-  // Audio still in Blob is not archived yet; releaseAudio stores its id when it is.
+  // Audio still in Blob is not archived yet; archiveAudio stores its id when it is.
   const inBlob = new Set((await db.selectDistinct({ id: meetingChunks.meetingId }).from(meetingChunks).where(isNotNull(meetingChunks.blobPath))).map(c => c.id));
   const totals = { matched: 0, missing: 0, ambiguous: 0, skipped: 0 };
   for (const userId of new Set(rows.map(r => r.userId))) {
