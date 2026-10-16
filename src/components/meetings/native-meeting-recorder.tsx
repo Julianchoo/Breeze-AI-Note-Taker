@@ -26,6 +26,8 @@ export function NativeMeetingRecorder({ userId, onFinished }: {
   const mounted = useRef(false);
   const refreshing = useRef(false);
   const notified = useRef(new Set<string>());
+  // Finished local copies whose meeting was checked on the server: true = deleted there, so hidden here.
+  const deleted = useRef(new Map<string, boolean>());
   const onFinishedRef = useRef(onFinished);
   useEffect(() => { onFinishedRef.current = onFinished; }, [onFinished]);
 
@@ -33,7 +35,12 @@ export function NativeMeetingRecorder({ userId, onFinished }: {
     if (refreshing.current || document.visibilityState !== "visible") return;
     refreshing.current = true;
     try {
-      const items = nativeRecordings(userId);
+      // ponytail: the phone keeps the files (the bridge has no delete); add one to the Android app to free the space.
+      for (const item of nativeRecordings(userId).filter((recording) => recording.finished && !deleted.current.has(recording.id))) {
+        const response = await fetch(`/api/meetings/${item.id}`).catch(() => null);
+        if (response && response.status !== 401) deleted.current.set(item.id, response.status === 404);
+      }
+      const items = nativeRecordings(userId).filter((recording) => !deleted.current.get(recording.id));
       if (mounted.current) {
         setRecordings(items);
         setReady(true);
