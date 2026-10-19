@@ -3,7 +3,7 @@ import type { NativeRecording } from "../src/lib/native-android-recorder";
 
 async function main() {
   const modulePath = "../src/lib/native-android-recorder.ts";
-  const { parseNativeResult, syncNativeRecording, nativeRecordings, exportNativeRecording } = await import(modulePath);
+  const { parseNativeResult, syncNativeRecording, nativeRecordings, exportNativeRecording, checkNativeRecordingAvailable } = await import(modulePath);
   assert.throws(() => parseNativeResult('{"ok":false,"error":"Storage full"}'), /Storage full/);
   assert.throws(() => parseNativeResult('{"recordings":[]}'), /invalid response/);
   assert.throws(() => parseNativeResult("broken"));
@@ -27,6 +27,12 @@ async function main() {
   }}, configurable: true});
   assert.deepEqual(nativeRecordings("user").map((item: NativeRecording) => item.id), ["meeting", "finished"], "saved audio remains accessible without duplicate pending entries");
   exportNativeRecording(state.id, state.userId);
+  checkNativeRecordingAvailable(); // Older APKs without the call check must still start.
+  const bridgeMock = (globalThis as unknown as {window: {BreezeAndroid: Record<string, unknown>}}).window.BreezeAndroid;
+  bridgeMock.checkRecordingAvailable = () => JSON.stringify({ok: false, error: "Hay una llamada en curso."});
+  assert.throws(() => checkNativeRecordingAvailable(), /llamada en curso/, "an active call refuses before creating a meeting");
+  bridgeMock.checkRecordingAvailable = () => ok();
+  checkNativeRecordingAvailable();
   globalThis.fetch = async (url, options) => {
     if (options?.method === "POST") {
       const index = Number((options.headers as Record<string, string>)["X-Chunk-Index"]);

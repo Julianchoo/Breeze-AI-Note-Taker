@@ -53,7 +53,38 @@ elegida en el selector de archivos de Android. Los originales privados se
 conservan hasta desinstalar la aplicación o borrar sus datos; controlar el espacio
 disponible y guardar copias antes de hacerlo.
 
-Las llamadas, la revocación del permiso, el reinicio, **Forzar detención** o ciertas
+**Llamadas y micrófono silenciado.** Desde Android 10, el sistema entrega silencio a cualquier app que no sea la del
+teléfono mientras hay una llamada (telefónica o VoIP, aunque esté en altavoz). No
+se puede evitar: para grabar una llamada, usar el grabador del propio teléfono o
+grabar desde otro dispositivo. Breeze evita guardar grabaciones mudas sin aviso:
+
+- **Antes de iniciar:** si `AudioManager.getMode()` indica llamada
+  (`MODE_IN_CALL`, `MODE_IN_COMMUNICATION` o `MODE_CALL_SCREENING`), rechaza
+  iniciar con el aviso «Hay una llamada en curso…». La web consulta primero
+  `checkRecordingAvailable()` para no crear la reunión en el servidor; el puente
+  `startRecording` repite la comprobación antes de crear archivos locales. Los APK
+  anteriores no tienen ese método y la web omite la comprobación.
+- **Durante la grabación:** el servicio consulta el modo de audio una vez por
+  segundo; si la llamada dura más de 3 segundos, detiene la grabación con «Una
+  llamada interrumpió la grabación…». También la detiene si Android marca la
+  captura como silenciada durante más de 3 segundos, o si recibe 10 segundos
+  seguidos de silencio digital exacto (todas las muestras entre −1 y 1), con «El
+  micrófono no está captando sonido (Android lo silenció)…». Una sala silenciosa
+  real siempre tiene ruido, así que este umbral no se activa en reuniones tranquilas.
+- El audio capturado hasta ese momento (incluidos los segundos finales mudos) se
+  conserva, se sincroniza y puede exportarse; el error aparece junto a la grabación
+  en **Saved on this phone**.
+
+Una app VoIP que deja `MODE_IN_COMMUNICATION` activo tras colgar puede impedir
+iniciar; cerrar esa app o esperar a que libere el audio. La lógica pura está en
+`CaptureGuards.java` y sus pruebas en `CaptureGuardsTest.java`. Estas comprobaciones
+son nativas: llegan sólo con un APK nuevo (hoy bloqueado por la firma, ver más
+abajo). Hasta entonces, la web solo muestra el aviso fijo de que las llamadas no se
+pueden grabar desde el mismo teléfono. Comprobar en un
+teléfono real: iniciar durante una llamada, recibir una llamada mientras graba y
+grabar una sala silenciosa varios minutos sin que se detenga.
+
+La revocación del permiso, el reinicio, **Forzar detención** o ciertas
 restricciones del fabricante pueden interrumpir la captura. No se reanuda el
 micrófono automáticamente tras un reinicio o un cierre forzado. Al abrir de nuevo,
 la aplicación recupera el audio local que alcanzó a guardar y marca la grabación
@@ -80,6 +111,7 @@ o configuración nativa sí exige publicar e instalar otro APK.
 | `android/app/src/main/java/com/breeze/app/MainActivity.java` | WebView, origen HTTPS, puente nativo, permisos, login y exportación |
 | `android/app/src/main/java/com/breeze/app/RecordingService.java` | Servicio de micrófono en primer plano, notificación y wake lock |
 | `android/app/src/main/java/com/breeze/app/RecordingStore.java` | Archivos privados, metadatos, recibos de subida y recuperación |
+| `android/app/src/main/java/com/breeze/app/CaptureGuards.java` | Detección de llamadas y de micrófono silenciado por Android |
 | `android/app/src/main/java/com/breeze/app/WavFile.java` | Escritura y reparación de WAV PCM mono, 16 bits, 16 kHz |
 | `android/app/src/main/AndroidManifest.xml`, `res/` | Permisos, deep link, servicio e iconos del launcher/notificación |
 | `src/app/icon.svg`, `android/app/src/main/res/drawable/ic_launcher_foreground.xml` | Favicon y su versión vectorial nativa; mantener ambas marcas coordinadas |

@@ -14,6 +14,7 @@ import java.security.SecureRandom;
 import android.util.Base64;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -199,6 +200,10 @@ public class MainActivity extends Activity {
         try { JSONObject json = action.run(); json.put("ok", true); return json.toString(); }
         catch (Exception error) { try { return new JSONObject().put("ok", false).put("error", error.getMessage() == null ? "Native recording failed" : error.getMessage()).toString(); } catch (Exception ignored) { return "{\"ok\":false,\"error\":\"Native recording failed\"}"; } }
     }
+    private void ensureNoCall() {
+        AudioManager audio = getSystemService(AudioManager.class);
+        if (audio != null && CaptureGuards.isCallMode(audio.getMode())) throw new IllegalStateException(CaptureGuards.CALL_IN_PROGRESS);
+    }
     private static void identifier(String value) {
         if (value == null || !value.matches("[A-Za-z0-9_-]{1,128}")) throw new IllegalArgumentException("Invalid recording or user ID");
     }
@@ -212,6 +217,8 @@ public class MainActivity extends Activity {
                 identifier(id); identifier(userId);
                 if (!visible) throw new IllegalStateException("Open Breeze to start recording");
                 if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) throw new IllegalStateException("Enable microphone permission in Android Settings → Apps → Breeze → Permissions, then reopen Breeze");
+                // Refuse before creating local state: Android would only record silence.
+                ensureNoCall();
                 synchronized (RecordingService.class) {
                     if (RecordingService.isRunning()) throw new IllegalStateException("A recording is already active");
                     if (title == null || title.length() > 500) throw new IllegalArgumentException("Invalid recording title");
@@ -223,6 +230,8 @@ public class MainActivity extends Activity {
                 return new JSONObject().put("recording", store.get(id, userId));
             });
         }
+        /** Lets the web refuse before creating a server meeting; older APKs lack this method. */
+        @JavascriptInterface public String checkRecordingAvailable() { return result(() -> { ensureNoCall(); return new JSONObject(); }); }
         @JavascriptInterface public String stopRecording() {
             return result(() -> {
                 String id = RecordingService.activeId;
