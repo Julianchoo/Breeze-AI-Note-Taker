@@ -19,6 +19,8 @@ const serverEnvSchema = z.object({
   // Admin-only OneDrive audio archive (account linking, never sign-in)
   MICROSOFT_CLIENT_ID: z.string().optional(),
   MICROSOFT_CLIENT_SECRET: z.string().optional(),
+  // Admin-only "Send to Notion"
+  NOTION_API_KEY: z.string().optional(),
 
   // AI
   OPENROUTER_API_KEY: z.string().optional(),

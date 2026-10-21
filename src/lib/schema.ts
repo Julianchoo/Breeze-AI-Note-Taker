@@ -111,6 +111,8 @@ export const meetings = pgTable("meetings", {
   onedriveUploadUrl: text("onedrive_upload_url"),
   // The archived WAV's OneDrive item id (playback); NULL = not archived. Never sent to the client.
   onedriveItemId: text("onedrive_item_id"),
+  // Last page created by the admin's "Send to Notion"; each send makes a new page.
+  notionPageUrl: text("notion_page_url"),
   // Public view-only link; NULL = sharing off. Each section is shared independently.
   shareToken: uuid("share_token").unique(),
   shareSummary: boolean("share_summary").default(true).notNull(),

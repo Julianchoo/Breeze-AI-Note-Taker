@@ -1,0 +1,1 @@
+ALTER TABLE "meetings" ADD COLUMN "notion_page_url" text;

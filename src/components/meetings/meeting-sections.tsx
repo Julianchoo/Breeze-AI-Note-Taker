@@ -3,6 +3,9 @@ import { useImperativeHandle, useRef, useState, type ReactNode, type Ref } from 
 import { AudioLines, ChevronDown, TriangleAlert } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import type { TranscriptSegment } from "@/lib/meeting-types";
+import { timestamp } from "@/lib/search-text";
+
+export { relabel, timestamp } from "@/lib/search-text";
 
 /* Sections shared by the owner's meeting view and the public share page. */
 
@@ -21,37 +24,6 @@ const PROSE =
   "[&_blockquote]:border-primary/40 [&_blockquote]:text-muted-foreground [&_blockquote]:my-5 [&_blockquote]:border-l-2 [&_blockquote]:pl-4 [&_blockquote]:italic " +
   "[&_code]:bg-muted [&_code]:rounded [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.8125rem] " +
   "[&_hr]:rule-fade [&_hr]:my-8 [&_hr]:h-px [&_hr]:border-0";
-
-export function timestamp(seconds: number) {
-  const value = Math.max(0, Math.floor(seconds));
-  return `${Math.floor(value / 60)}:${String(value % 60).padStart(2, "0")}`;
-}
-/* Replaces whole speaker labels with their display names in one pass. Longest-first alternation keeps
-   "Part 2 · Speaker 1" whole; the letter/digit guards stop "Speaker 1" matching inside "Speaker 10". */
-export function relabel(text: string, labels: string[], names: Record<string, string>) {
-  if (!labels.length || !Object.keys(names).length) return text;
-  names = { ...names };
-  // The summary model tends to shorten "Part 1 · Speaker 1" to "Speaker 1"; accept that short form when unambiguous.
-  const short = labels.map((label) => /^Part \d+ · (.+)$/.exec(label)?.[1]);
-  short.forEach((alias, i) => {
-    const label = labels[i]!;
-    if (
-      alias &&
-      Object.hasOwn(names, label) &&
-      !labels.includes(alias) &&
-      short.filter((s) => s === alias).length === 1
-    )
-      names[alias] = names[label]!;
-  });
-  const alternatives = [...labels, ...Object.keys(names).filter((key) => !labels.includes(key))]
-    .sort((a, b) => b.length - a.length)
-    .map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-  const pattern = new RegExp(
-    `(?<![\\p{L}\\p{N}])(?:${alternatives.join("|")})(?![\\p{L}\\p{N}])`,
-    "gu"
-  );
-  return text.replace(pattern, (label) => (Object.hasOwn(names, label) ? names[label]! : label));
-}
 
 export function SummaryProse({ summary, ref }: { summary: string; ref?: Ref<HTMLDivElement> }) {
   return (

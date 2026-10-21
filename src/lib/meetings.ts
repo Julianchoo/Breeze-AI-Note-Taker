@@ -13,7 +13,7 @@ import { ADMIN_EMAIL } from "./utils";
 
 type Row = Pick<typeof meetings.$inferSelect, Exclude<keyof Meeting, "hasAudio"> | "onedriveItemId">;
 function visible(row: Row): Meeting {
-  return { id: row.id, title: row.title, status: row.status, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), durationSeconds: row.durationSeconds, expectedChunks: row.expectedChunks, summary: row.summary, detectedLanguage: row.detectedLanguage, error: row.error, costUsd: row.costUsd, speakerNames: row.speakerNames, speakerSuggestions: row.speakerSuggestions, aiContext: row.aiContext, shareToken: row.shareToken, shareSummary: row.shareSummary, shareTranscript: row.shareTranscript, hasAudio: row.onedriveItemId !== null };
+  return { id: row.id, title: row.title, status: row.status, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), durationSeconds: row.durationSeconds, expectedChunks: row.expectedChunks, summary: row.summary, detectedLanguage: row.detectedLanguage, error: row.error, costUsd: row.costUsd, speakerNames: row.speakerNames, speakerSuggestions: row.speakerSuggestions, aiContext: row.aiContext, shareToken: row.shareToken, shareSummary: row.shareSummary, shareTranscript: row.shareTranscript, hasAudio: row.onedriveItemId !== null, notionPageUrl: row.notionPageUrl };
 }
 export async function meetingRoute(request: Request, action: (userId: string) => Promise<Response>) {
   try {
@@ -43,7 +43,7 @@ async function owned(id: string, userId: string) {
   return row;
 }
 export async function listMeetings(userId: string) {
-  return (await db.select({ id: meetings.id, title: meetings.title, status: meetings.status, createdAt: meetings.createdAt, updatedAt: meetings.updatedAt, durationSeconds: meetings.durationSeconds, expectedChunks: meetings.expectedChunks, error: meetings.error, summary: meetings.summary, detectedLanguage: meetings.detectedLanguage, costUsd: meetings.costUsd, speakerNames: meetings.speakerNames, speakerSuggestions: meetings.speakerSuggestions, aiContext: meetings.aiContext, shareToken: meetings.shareToken, shareSummary: meetings.shareSummary, shareTranscript: meetings.shareTranscript, onedriveItemId: meetings.onedriveItemId }).from(meetings).where(eq(meetings.userId, userId)).orderBy(desc(meetings.createdAt))).map(visible);
+  return (await db.select({ id: meetings.id, title: meetings.title, status: meetings.status, createdAt: meetings.createdAt, updatedAt: meetings.updatedAt, durationSeconds: meetings.durationSeconds, expectedChunks: meetings.expectedChunks, error: meetings.error, summary: meetings.summary, detectedLanguage: meetings.detectedLanguage, costUsd: meetings.costUsd, speakerNames: meetings.speakerNames, speakerSuggestions: meetings.speakerSuggestions, aiContext: meetings.aiContext, shareToken: meetings.shareToken, shareSummary: meetings.shareSummary, shareTranscript: meetings.shareTranscript, onedriveItemId: meetings.onedriveItemId, notionPageUrl: meetings.notionPageUrl }).from(meetings).where(eq(meetings.userId, userId)).orderBy(desc(meetings.createdAt))).map(visible);
 }
 // ponytail: checked before each OpenAI call, so a user can overshoot the limit by one call's cost.
 async function requireBudget(userId: string) {
@@ -64,6 +64,9 @@ export async function getMeeting(id: string, userId: string): Promise<MeetingDet
   const row = await owned(id, userId);
   const chunks = await db.select().from(meetingChunks).where(eq(meetingChunks.meetingId, id)).orderBy(asc(meetingChunks.index));
   return { meeting: visible(row), chunks: chunks.map(c => ({ index: c.index, durationSeconds: c.durationSeconds, status: c.segments === null ? "pending" : "ready" })), segments: chunks.flatMap(c => c.segments ?? []) };
+}
+export async function setNotionPageUrl(id: string, userId: string, url: string) {
+  await db.update(meetings).set({ notionPageUrl: url }).where(scope(id, userId));
 }
 export async function updateMeeting(id: string, userId: string, body: unknown) {
   const input = z.union([

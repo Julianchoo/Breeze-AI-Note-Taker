@@ -21,6 +21,8 @@ export type Meeting = {
   shareToken: string | null; shareSummary: boolean; shareTranscript: boolean;
   /** The audio is archived in the owner's OneDrive and playable from `/api/meetings/{id}/audio`. Owner-only. */
   hasAudio: boolean;
+  /** Last page sent to the admin's Notion; null = never sent. */
+  notionPageUrl: string | null;
 };
 /** What a public share link exposes; unshared sections are omitted. */
 export type SharedMeeting = {

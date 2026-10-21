@@ -5,6 +5,7 @@ import { archiveAudioStatus } from "@/lib/audio-status";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
+  ArrowUpRight,
   Check,
   Copy,
   Download,
@@ -14,6 +15,7 @@ import {
   Lock,
   Pencil,
   RotateCcw,
+  Send,
   Share2,
   Trash2,
   TriangleAlert,
@@ -27,6 +29,7 @@ import {
   timestamp,
   TranscriptList,
 } from "@/components/meetings/meeting-sections";
+import { NotionDialog } from "@/components/meetings/notion-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -127,6 +130,7 @@ export function MeetingDetailView({ id }: { id: string }) {
   const [speakerSaving, setSpeakerSaving] = useState(false);
   const [shareSaving, setShareSaving] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [notionOpen, setNotionOpen] = useState(false);
   /* The finished recording kept in this browser; the server deletes its audio after transcription. */
   const [localAudio, setLocalAudio] = useState<CachedRecording | null>(null);
   const [audioExporting, setAudioExporting] = useState(false);
@@ -594,6 +598,15 @@ export function MeetingDetailView({ id }: { id: string }) {
                           Download Word — summary + transcript
                         </DropdownMenuItem>
                       )}
+                      {isAdmin && meeting.status === "ready" && (
+                        <DropdownMenuItem
+                          className="rounded-lg px-2 py-2"
+                          onSelect={() => setNotionOpen(true)}
+                        >
+                          <Send aria-hidden="true" />
+                          Send to Notion
+                        </DropdownMenuItem>
+                      )}
                     </>
                   )}
                   {localAudio && (
@@ -705,6 +718,19 @@ export function MeetingDetailView({ id }: { id: string }) {
                   )}
                 </DialogContent>
               </Dialog>
+              {isAdmin && (
+                <NotionDialog
+                  meeting={meeting}
+                  open={notionOpen}
+                  onOpenChange={setNotionOpen}
+                  onSent={(notionPageUrl) => {
+                    setNotionOpen(false);
+                    setDetail((current) =>
+                      current ? { ...current, meeting: { ...current.meeting, notionPageUrl } } : current
+                    );
+                  }}
+                />
+              )}
               <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
                 <DialogTrigger asChild>
                   <Button
@@ -889,6 +915,14 @@ export function MeetingDetailView({ id }: { id: string }) {
               </h2>
             </div>
             <div className="flex flex-wrap gap-2">
+              {isAdmin && meeting.notionPageUrl && (
+                <Button variant="outline" size="sm" asChild>
+                  <a href={meeting.notionPageUrl} target="_blank" rel="noopener noreferrer">
+                    <ArrowUpRight aria-hidden="true" />
+                    Open in Notion
+                  </a>
+                </Button>
+              )}
               {isAdmin && meeting.status === "ready" && (
                 <Button
                   variant="outline"

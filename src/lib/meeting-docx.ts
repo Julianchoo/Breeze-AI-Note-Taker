@@ -1,5 +1,5 @@
-import { timestamp } from "@/components/meetings/meeting-sections";
 import type { TranscriptSegment } from "@/lib/meeting-types";
+import { timestamp } from "@/lib/search-text";
 
 type MdNode = ReturnType<typeof import("mdast-util-from-markdown").fromMarkdown>["children"][number];
 type RunStyle = { bold?: boolean; italics?: boolean; font?: string };
