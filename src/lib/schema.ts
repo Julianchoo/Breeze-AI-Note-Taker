@@ -12,7 +12,7 @@ export const user = pgTable(
     email: text("email").notNull().unique(),
     emailVerified: boolean("email_verified").default(false).notNull(),
     image: text("image"),
-    // Lifetime OpenAI spend; kept here (not summed from meetings) so deleting meetings can't reset it.
+    // Lifetime recorded AI spend; kept here so deleting meetings cannot reset it.
     spentUsd: doublePrecision("spent_usd").default(0).notNull(),
     costLimitUsd: doublePrecision("cost_limit_usd").default(0.5).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -107,6 +107,7 @@ export const meetings = pgTable("meetings", {
   // In-flight Soniox upload and transcription job; cleared once the transcript is saved or the job fails.
   sonioxFileId: text("soniox_file_id"),
   sonioxTranscriptionId: text("soniox_transcription_id"),
+  sonioxCostAttemptId: uuid("soniox_cost_attempt_id"),
   // In-flight OneDrive upload session (admin audio archive); a bearer URL, never sent to the client.
   onedriveUploadUrl: text("onedrive_upload_url"),
   // The archived WAV's OneDrive item id (playback); NULL = not archived. Never sent to the client.
@@ -128,3 +129,22 @@ export const meetingChunks = pgTable("meeting_chunks", {
   durationSeconds: doublePrecision("duration_seconds").notNull(),
   segments: jsonb("segments").$type<TranscriptSegment[]>(),
 }, (table) => [uniqueIndex("meeting_chunks_meeting_index_unique").on(table.meetingId, table.index)]);
+
+/** Provider accounting only: never store prompts, transcript, audio, secrets or provider error bodies. */
+export const aiCostAttempts = pgTable("ai_cost_attempts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  meetingId: uuid("meeting_id").references(() => meetings.id, { onDelete: "set null" }),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  provider: text("provider").$type<"soniox" | "openai">().notNull(),
+  stage: text("stage").$type<"transcription" | "analysis">().notNull(),
+  model: text("model").notNull(),
+  status: text("status").$type<"pending" | "reported" | "estimated" | "unknown">().default("pending").notNull(),
+  providerRequestId: text("provider_request_id"),
+  costUsd: doublePrecision("cost_usd"),
+  // Pending/unknown budget hold; never represented as a measured charge.
+  reservedUsd: doublePrecision("reserved_usd").default(0).notNull(),
+  pricingVersion: text("pricing_version").notNull(),
+  usage: jsonb("usage").$type<Record<string, number>>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, table => [index("ai_cost_attempts_meeting_idx").on(table.meetingId), index("ai_cost_attempts_user_status_idx").on(table.userId, table.status)]);
