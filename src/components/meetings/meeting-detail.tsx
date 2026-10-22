@@ -21,6 +21,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { toast } from "sonner";
+import { AiCostBreakdown } from "@/components/meetings/ai-cost-breakdown";
 import {
   AudioPlayer,
   type AudioPlayerHandle,
@@ -61,7 +62,7 @@ import {
   findFinishedRecording,
   recordingWav,
 } from "@/lib/recording-cache";
-import { ADMIN_EMAIL, usd } from "@/lib/utils";
+import { ADMIN_EMAIL } from "@/lib/utils";
 
 /* Ticks only while mounted; keyed by phase so the elapsed time restarts when transcription hands off to the summary. */
 function ProcessingProgress({
@@ -533,12 +534,10 @@ export function MeetingDetailView({ id }: { id: string }) {
               </time>
               {separator}
               <span className="font-mono tabular-nums">{timestamp(meeting.durationSeconds)}</span>
-              {meeting.costUsd !== null && (
+              {(detail.aiCosts.totalUsd !== null || detail.aiCosts.attempts.length > 0) && (
                 <>
                   {separator}
-                  <span>
-                    <span className="font-mono tabular-nums">{usd(meeting.costUsd)}</span> AI cost
-                  </span>
+                  <AiCostBreakdown costs={detail.aiCosts} />
                 </>
               )}
             </p>

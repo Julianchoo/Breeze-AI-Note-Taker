@@ -43,4 +43,17 @@ export type TranscriptSegment = {
 };
 export type MeetingDetail = {
   meeting: Meeting; chunks: MeetingChunk[]; segments: TranscriptSegment[];
+  aiCosts: AiCosts;
+};
+
+export type AiCostAttempt = {
+  id: string; provider: "soniox" | "openai"; stage: "transcription" | "analysis";
+  model: string; status: "pending" | "reported" | "estimated" | "unknown";
+  costUsd: number | null; createdAt: string;
+};
+/** Known list-price subtotal, not a provider invoice; unknown/pending attempts are excluded. */
+export type AiCosts = {
+  totalUsd: number | null; transcriptionUsd: number | null; analysisUsd: number | null;
+  legacyUsd: number | null; pendingAttempts: number; unknownAttempts: number; estimatedAttempts: number;
+  attempts: AiCostAttempt[];
 };
