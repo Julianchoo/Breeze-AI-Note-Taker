@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, Mic, Plus, Search, TriangleAlert } from "lucide-react";
+import { ArrowUpRight, Mic, Search, TriangleAlert } from "lucide-react";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -93,12 +93,16 @@ export function MeetingList() {
               Conversations worth coming back to.
             </p>
           </div>
-          <Button asChild size="lg">
-            <Link href="/meetings/new">
-              <Plus aria-hidden="true" />
-              New Meeting
-            </Link>
-          </Button>
+          <div className="w-full sm:w-auto">
+            <Button asChild size="lg" className="h-16 w-full gap-3 px-8 text-base shadow-md sm:min-w-64">
+              <Link href="/meetings/new?record=1" prefetch={false}>
+                <Mic aria-hidden="true" className="size-5" />
+                New meeting
+              </Link>
+            </Button>
+            <p className="text-muted-foreground mt-2 text-center text-xs">One tap to record your microphone</p>
+            <Link href="/meetings/new" className="text-muted-foreground hover:text-foreground mt-3 block text-center text-xs underline underline-offset-4">Upload an existing recording</Link>
+          </div>
         </header>
 
         <div className="mt-10 h-px rule-fade sm:mt-14" />
@@ -255,7 +259,7 @@ export function MeetingList() {
             </div>
             {!query && (
               <Button asChild size="lg" className="mt-1">
-                <Link href="/meetings/new">
+                <Link href="/meetings/new?record=1" prefetch={false}>
                   <Mic aria-hidden="true" />
                   Record a meeting
                 </Link>

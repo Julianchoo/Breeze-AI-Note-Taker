@@ -11,6 +11,7 @@ import {
   TriangleAlert,
   UploadCloud,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { decodeAudioFile, sliceChunks } from "@/lib/audio-file";
@@ -39,12 +40,21 @@ async function checked(response: Response) {
 export function MeetingRecorder({
   userId,
   onFinished,
+  autoStart = false,
 }: {
   userId: string;
+  autoStart?: boolean;
   onFinished: (id: string) => void;
 }) {
   const [title, setTitle] = useState("");
-  const [mode, setMode] = useState("tab");
+  const [tabAttached, setTabAttached] = useState(false);
+  const [addingTab, setAddingTab] = useState(false);
+  const detachTab = useRef<(() => void) | null>(null);
+  const starting = useRef(false);
+  const autoAttempted = useRef(false);
+  const startLatest = useRef<() => Promise<void>>(async () => {});
+  const titleLatest = useRef("");
+  const startedHere = useRef<string | null>(null);
   // getDisplayMedia (tab/screen capture) isn't implemented on mobile browsers (e.g. Chrome on
   // Android), so calling it there throws a raw "not a function" error instead of a usable message.
   const [tabCaptureSupported, setTabCaptureSupported] = useState(true);
@@ -78,7 +88,6 @@ export function MeetingRecorder({
     if (!supported) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setTabCaptureSupported(false);
-      setMode("mic");
     }
   }, []);
 
@@ -188,6 +197,23 @@ export function MeetingRecorder({
         return;
       }
       await upload(recording);
+      const finalTitle = titleLatest.current.trim() || recording.title;
+      if (startedHere.current === recording.id && finalTitle !== recording.title) {
+        try {
+          await checked(
+            await fetch(`/api/meetings/${recording.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ title: finalTitle }),
+              signal: AbortSignal.timeout(10000),
+            })
+          );
+          recording.title = finalTitle;
+          await saveRecording(recording);
+        } catch {
+          toast.error("Could not save the meeting name. You can rename it on the meeting page.");
+        }
+      }
       await checked(
         await fetch(`/api/meetings/${recording.id}`, {
           method: "PATCH",
@@ -215,6 +241,8 @@ export function MeetingRecorder({
   }
 
   async function start() {
+    if (starting.current || active.current) return;
+    starting.current = true;
     setError("");
     setPhase("starting");
     cacheFailed.current = false;
@@ -222,22 +250,13 @@ export function MeetingRecorder({
     acquired.current = streams;
     try {
       if (!navigator.mediaDevices?.getUserMedia)
-        throw new Error("Open Breeze in Chrome or Edge on desktop using HTTPS or localhost.");
-      // Must be invoked directly from the click, before any other awaited operation.
-      if (mode === "tab") {
-        if (!navigator.mediaDevices.getDisplayMedia)
-          throw new Error(
-            "Sharing a browser tab isn’t supported on this device (common on phones). Choose “Microphone only”, or record from a desktop browser instead."
-          );
-        const display = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-        streams.push(display);
-        if (!display.getAudioTracks().length)
-          throw new Error("Select a browser tab and enable “Share tab audio”, then try again.");
-      }
+        throw new Error(
+          "Microphone recording is unavailable. Open Breeze in a supported browser using HTTPS."
+        );
       streams.push(
         await navigator.mediaDevices.getUserMedia({
           // Echo cancellation only when tab audio is captured directly; mic-only mode must hear the device's own speaker.
-          audio: { echoCancellation: mode === "tab", noiseSuppression: true },
+          audio: { echoCancellation: false, noiseSuppression: true },
           video: false,
         })
       );
@@ -263,8 +282,9 @@ export function MeetingRecorder({
       };
       await saveRecording(recording);
       active.current = recording;
+      startedHere.current = recording.id;
       if (!mounted.current) throw new Error("Recording cancelled.");
-      recorder.current = await captureAudio(
+      const capture = await captureAudio(
         streams,
         (blob, samples) => {
           const index = recording.chunks++;
@@ -298,8 +318,11 @@ export function MeetingRecorder({
         },
         setError
       );
-      // This function runs only from the Start button's click handler.
-      // eslint-disable-next-line react-hooks/purity
+      if (!mounted.current) {
+        capture.dispose();
+        return;
+      }
+      recorder.current = capture;
       startedAt.current = performance.now();
       setElapsed(0);
       setPhase("recording");
@@ -307,6 +330,54 @@ export function MeetingRecorder({
       streams.forEach((stream) => stream.getTracks().forEach((track) => track.stop()));
       setError(cause instanceof Error ? cause.message : "Could not start recording.");
       setPhase(active.current ? "stopped" : "idle");
+    } finally {
+      starting.current = false;
+    }
+  }
+
+  // A deferred attempt survives Strict Mode's effect rehearsal without opening the mic twice.
+  useEffect(() => {
+    startLatest.current = start;
+  });
+  useEffect(() => {
+    if (!autoStart) return;
+    const timer = window.setTimeout(() => {
+      if (autoAttempted.current) return;
+      autoAttempted.current = true;
+      void startLatest.current();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [autoStart]);
+
+  async function addTab() {
+    if (addingTab || phase !== "recording" || !recorder.current) return;
+    setAddingTab(true);
+    setError("");
+    let display: MediaStream | undefined;
+    try {
+      // Keep the browser chooser directly in this click's activation.
+      display = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+      if (!display.getAudioTracks().length)
+        throw new Error(
+          "Choose a browser tab and enable Share tab audio. Your microphone is still recording."
+        );
+      if (!mounted.current || !active.current || !recorder.current)
+        throw new Error("The recording has already stopped.");
+      detachTab.current = recorder.current.addStream(display, () => {
+        detachTab.current = null;
+        setTabAttached(false);
+      });
+      setTabAttached(true);
+    } catch (cause) {
+      display?.getTracks().forEach((track) => track.stop());
+      if (!(cause instanceof DOMException && cause.name === "NotAllowedError"))
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : "Could not add tab audio. Your microphone is still recording."
+        );
+    } finally {
+      setAddingTab(false);
     }
   }
 
@@ -448,75 +519,13 @@ export function MeetingRecorder({
       ) : null}
 
       <div className="bg-card animate-fade-up rounded-2xl border p-5 shadow-sm sm:p-8">
-        {/* Step 1 — name. Quiet, it is the least important decision here. */}
-        <div className="space-y-2">
-          <label htmlFor="meeting-title" className="text-sm font-medium">
-            Meeting name
-          </label>
-          <Input
-            id="meeting-title"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder="e.g. Monday product catch-up"
-            maxLength={160}
-            disabled={busy}
-            className="h-11 rounded-lg"
-          />
-        </div>
-
-        {/* Step 2 — source. Native radios styled as selectable cards via has-[:checked]. */}
-        <fieldset disabled={busy} className="mt-7 disabled:opacity-60">
-          <legend className="mb-3 text-sm font-medium">What would you like to record?</legend>
-          <div className="grid gap-2.5 sm:grid-cols-2">
-            <label
-              className={`group has-[:checked]:border-primary has-[:checked]:bg-primary/5 hover:bg-accent/40 focus-within:ring-ring/50 flex items-start gap-3 rounded-xl border p-4 transition-colors focus-within:ring-[3px] has-[:disabled]:cursor-not-allowed ${tabCaptureSupported ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}
-            >
-              <input
-                type="radio"
-                name="audio-source"
-                value="tab"
-                checked={mode === "tab"}
-                disabled={!tabCaptureSupported}
-                onChange={() => setMode("tab")}
-                className="accent-primary mt-0.5 size-4 shrink-0"
-              />
-              <Monitor className="text-muted-foreground group-has-[:checked]:text-primary size-5 shrink-0 transition-colors" />
-              <span className="min-w-0 text-sm font-medium">
-                Microphone + meeting tab
-                <span className="text-muted-foreground mt-1 block text-xs leading-relaxed font-normal">
-                  {tabCaptureSupported
-                    ? "Choose the meeting tab and enable Share tab audio."
-                    : "Not available on this device — tab sharing needs a desktop browser."}
-                </span>
-              </span>
-            </label>
-            <label className="group has-[:checked]:border-primary has-[:checked]:bg-primary/5 hover:bg-accent/40 focus-within:ring-ring/50 flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-colors focus-within:ring-[3px] has-[:disabled]:cursor-not-allowed">
-              <input
-                type="radio"
-                name="audio-source"
-                value="mic"
-                checked={mode === "mic"}
-                onChange={() => setMode("mic")}
-                className="accent-primary mt-0.5 size-4 shrink-0"
-              />
-              <Mic className="text-muted-foreground group-has-[:checked]:text-primary size-5 shrink-0 transition-colors" />
-              <span className="min-w-0 text-sm font-medium">
-                Microphone only
-                <span className="text-muted-foreground mt-1 block text-xs leading-relaxed font-normal">
-                  For conversations in the room or personal notes.
-                </span>
-              </span>
-            </label>
-          </div>
-        </fieldset>
-
         {/* Step 3 — the clock. The hero of this screen once the tape is rolling. */}
         <div
-          className={`mt-7 rounded-2xl border px-4 py-8 text-center transition-colors duration-500 ${
+          className={`rounded-2xl px-4 py-8 text-center transition-colors duration-500 ${
             phase === "recording"
-              ? "border-destructive/30 bg-destructive/5"
+              ? "bg-destructive/5"
               : phase === "saving"
-                ? "border-primary/30 bg-primary/5"
+                ? "bg-primary/5"
                 : "bg-muted/40"
           }`}
         >
@@ -553,7 +562,9 @@ export function MeetingRecorder({
           </p>
           <p className="text-muted-foreground mx-auto mt-4 max-w-xs text-sm" aria-live="polite">
             {phase === "recording"
-              ? "Recording · keep this tab open"
+              ? tabAttached
+                ? "Microphone + meeting tab · keep this tab open"
+                : "Microphone · keep this tab open"
               : phase === "saving"
                 ? "Saving your recording…"
                 : "Up to 4 hours · English & Spanish detected automatically"}
@@ -565,19 +576,19 @@ export function MeetingRecorder({
           {phase === "idle" || phase === "starting" ? (
             <Button
               size="lg"
-              className="w-full"
+              className="h-14 w-full text-base"
               disabled={phase === "starting" || fileBusy}
               onClick={() => void start()}
             >
               <Mic />
-              {phase === "starting" ? "Preparing recording…" : "Start recording"}
+              {phase === "starting" ? "Starting microphone…" : "Record meeting"}
             </Button>
           ) : null}
           {phase === "recording" ? (
             <Button
               size="lg"
               variant="destructive"
-              className="w-full"
+              className="h-14 w-full text-base"
               onClick={() => {
                 setPhase("saving");
                 recorder.current?.stop();
@@ -599,6 +610,59 @@ export function MeetingRecorder({
             </Button>
           ) : null}
         </div>
+
+        <details className="mt-6 px-1 py-3">
+          <summary className="focus-visible:ring-ring cursor-pointer rounded text-sm font-medium focus-visible:ring-2">
+            Meeting options
+          </summary>
+          <div className="mt-4 space-y-4">
+            <div className="space-y-2">
+              <label htmlFor="meeting-title" className="text-sm font-medium">
+                Meeting name (optional)
+              </label>
+              <Input
+                id="meeting-title"
+                value={title}
+                onChange={(event) => {
+                  setTitle(event.target.value);
+                  titleLatest.current = event.target.value;
+                }}
+                placeholder="Breeze will name it for you"
+                maxLength={160}
+                disabled={phase === "saving" || phase === "stopped" || fileBusy}
+                className="h-11 rounded-lg"
+              />
+            </div>
+            {tabCaptureSupported ? (
+              <div>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  disabled={phase !== "recording" || addingTab}
+                  onClick={() => {
+                    if (tabAttached) {
+                      detachTab.current?.();
+                      detachTab.current = null;
+                      setTabAttached(false);
+                    } else void addTab();
+                  }}
+                >
+                  <Monitor />
+                  {addingTab
+                    ? "Choosing tab…"
+                    : tabAttached
+                      ? "Remove meeting tab"
+                      : "Add meeting tab audio"}
+                </Button>
+                <p className="text-muted-foreground mt-2 text-xs leading-relaxed">
+                  {phase === "recording"
+                    ? "Choose the meeting tab and enable Share tab audio. Use headphones to avoid capturing voices twice."
+                    : "Start recording, then add a meeting tab here anytime."}
+                </p>
+              </div>
+            ) : null}
+          </div>
+        </details>
 
         {error ? (
           <p
@@ -637,18 +701,17 @@ export function MeetingRecorder({
         <div className="mt-5 flex items-start gap-3">
           <ShieldCheck className="text-muted-foreground mt-0.5 size-4 shrink-0" />
           <p className="text-muted-foreground text-xs leading-relaxed">
-            Let everyone know you are recording. Audio is deleted from our servers after
-            transcription; download it from the meeting page on this device. Use headphones to avoid
-            capturing speaker audio twice.
+            Let everyone know you’re recording. Keep this tab open until you stop and save.
           </p>
         </div>
       </div>
 
-      <section className="bg-card animate-fade-up rounded-2xl border p-5 shadow-sm [animation-delay:120ms] sm:p-8">
-        <p className="eyebrow">Already recorded?</p>
-        <h2 className="font-display mt-1.5 text-2xl">Upload a file</h2>
+      <details className="bg-card rounded-xl border p-5">
+        <summary className="focus-visible:ring-ring cursor-pointer rounded text-sm font-medium focus-visible:ring-2">
+          Upload an existing recording
+        </summary>
         <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
-          Audio or video, up to 4 hours. Uses the meeting name above, or the file name.
+          Audio or video, up to 4 hours. Breeze will name the meeting automatically.
         </p>
         <label
           onDragOver={(event) => {
@@ -725,7 +788,7 @@ export function MeetingRecorder({
             Retry upload
           </Button>
         ) : null}
-      </section>
+      </details>
     </div>
   );
 }

@@ -1,19 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Mic, Square, UploadCloud, TriangleAlert, Download } from "lucide-react";
-import { phoneAudioStatus } from "@/lib/audio-status";
-import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
+import { Mic, Square, UploadCloud, TriangleAlert, Download } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { phoneAudioStatus } from "@/lib/audio-status";
 import {
   checkedNativeRequest, exportNativeRecording, nativeRecordings, startNativeRecording, stopNativeRecording,
   syncNativeRecording, type NativeRecording,
 } from "@/lib/native-android-recorder";
 
-export function NativeMeetingRecorder({ userId, onFinished }: {
-  userId: string; onFinished: (id: string) => void;
+export function NativeMeetingRecorder({ userId, onFinished, autoStart = false }: {
+  userId: string; onFinished: (id: string) => void; autoStart?: boolean;
 }) {
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
@@ -25,6 +25,9 @@ export function NativeMeetingRecorder({ userId, onFinished }: {
   const [now, setNow] = useState(0);
   const mounted = useRef(false);
   const refreshing = useRef(false);
+  const starting = useRef(false);
+  const autoStartHandled = useRef(false);
+  const startedHere = useRef<string | null>(null);
   const notified = useRef(new Set<string>());
   // Finished local copies whose meeting was checked on the server: true = deleted there, so hidden here.
   const deleted = useRef(new Map<string, boolean>());
@@ -55,8 +58,14 @@ export function NativeMeetingRecorder({ userId, onFinished }: {
         if (mounted.current) setUploadingId(null);
         if (finished && mounted.current && !notified.current.has(item.id)) {
           notified.current.add(item.id);
-          onFinishedRef.current(item.id);
-          break;
+          // Recover older audio in the background without taking a new recording away.
+          // Upload completion may arrive after a manual start. Re-read the service rather
+          // than using the snapshot from before the awaited upload.
+          const phoneIsRecording = nativeRecordings(userId).some((entry) => !entry.stopped && !entry.finished);
+          if (!starting.current && !phoneIsRecording && (startedHere.current === item.id || (!autoStart && !startedHere.current))) {
+            onFinishedRef.current(item.id);
+            break;
+          }
         }
       }
       if (mounted.current && navigator.onLine) setError("");
@@ -66,13 +75,22 @@ export function NativeMeetingRecorder({ userId, onFinished }: {
         setError(cause instanceof Error ? cause.message : "Could not upload audio. Retry when connected.");
       }
     } finally { refreshing.current = false; if (mounted.current) setUploadingId(null); }
-  }, [userId]);
+  }, [userId, autoStart]);
 
   useEffect(() => {
     mounted.current = true;
     // Subscribe first; read bridge state asynchronously after React commits.
     queueMicrotask(() => {
-      if (mounted.current) void refresh();
+      if (!mounted.current) return;
+      try {
+        // Make the local recorder ready immediately; older uploads must not delay the microphone.
+        setRecordings(nativeRecordings(userId));
+        setReady(true);
+        setNow(Date.now());
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "Could not read saved phone audio.");
+      }
+      void refresh();
     });
     const timer = setInterval(() => void refresh(), 3000);
     const retry = () => void refresh();
@@ -85,11 +103,27 @@ export function NativeMeetingRecorder({ userId, onFinished }: {
       window.removeEventListener("online", retry);
       // The foreground service owns recording; leaving this page must not stop it.
     };
-  }, [refresh]);
+  }, [refresh, userId]);
 
   const active = recordings.find((item) => !item.stopped && !item.finished);
-  async function start() {
-    if (busy || active || !ready) return;
+  const start = useCallback(async () => {
+    if (starting.current || busy || !ready) return;
+    // Read the bridge again: its foreground service can keep recording while this page is closed.
+    try {
+      const current = nativeRecordings(userId);
+      const existing = current.find((item) => !item.stopped && !item.finished);
+      if (existing) {
+        // Reopening New meeting adopts the service session instead of creating another.
+        // Its eventual Stop & save should still open the completed notes.
+        startedHere.current = existing.id;
+        setRecordings(current);
+        return;
+      }
+    } catch (cause) {
+      setActionError(cause instanceof Error ? cause.message : "Could not check the phone recorder.");
+      return;
+    }
+    starting.current = true;
     setBusy(true);
     setActionError("");
     try {
@@ -99,19 +133,34 @@ export function NativeMeetingRecorder({ userId, onFinished }: {
         body: JSON.stringify({title: name}), signal: AbortSignal.timeout(30000),
       }));
       if (typeof result?.meeting?.id !== "string") throw new Error("The meeting could not be created.");
+      if (!mounted.current) return;
       const recording = startNativeRecording(result.meeting.id, userId, name);
+      startedHere.current = recording.id;
       setRecordings((items) => [recording, ...items]);
       setNow(Date.now());
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : "Could not start recording.");
-    } finally { setBusy(false); }
-  }
+    } finally { starting.current = false; if (mounted.current) setBusy(false); }
+  }, [busy, ready, title, userId]);
+
+  useEffect(() => {
+    if (!autoStart || !ready || autoStartHandled.current) return;
+    // Defer until after commit; Strict Mode cancels its first scheduled attempt.
+    const timer = setTimeout(() => {
+      if (!mounted.current || autoStartHandled.current) return;
+      autoStartHandled.current = true;
+      void start();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [autoStart, ready, start]);
+
   async function stop() {
     if (busy) return;
     setBusy(true);
     setActionError("");
     try {
       const stopped = stopNativeRecording();
+      startedHere.current = stopped.id;
       setRecordings((items) => items.map((item) => item.id === stopped.id ? stopped : item));
       await refresh();
     } catch (cause) {
@@ -130,12 +179,11 @@ export function NativeMeetingRecorder({ userId, onFinished }: {
   return (
     <div className="space-y-6">
       <section className="bg-card animate-fade-up rounded-2xl border p-5 sm:p-8">
-        <label htmlFor="native-title" className="text-sm font-medium">Meeting name</label>
-        <Input id="native-title" className="mt-2 h-11 rounded-lg" value={active?.title ?? title}
-          onChange={(event) => setTitle(event.target.value)} maxLength={160} disabled={!!active || busy}
-          placeholder="e.g. Personal notes" />
-        <div className="bg-muted/40 mt-7 rounded-2xl border px-4 py-8 text-center">
-          <p className="eyebrow">{active ? "Recording microphone" : "Android microphone"}</p>
+        <div className="px-4 py-6 text-center">
+          <p className="eyebrow flex items-center justify-center gap-2">
+            {active ? <span className="bg-destructive animate-pulse-ring size-2 rounded-full" aria-hidden="true" /> : null}
+            {active ? "Recording microphone" : "Android microphone"}
+          </p>
           <p className="mt-5 font-mono text-5xl tabular-nums" role="timer" aria-label="Recording duration">
             {String(Math.floor(seconds / 3600)).padStart(2, "0")}:{String(Math.floor(seconds / 60) % 60).padStart(2, "0")}:{String(seconds % 60).padStart(2, "0")}
           </p>
@@ -143,20 +191,27 @@ export function NativeMeetingRecorder({ userId, onFinished }: {
             {active ? "You can lock your screen or use other apps. Stop from here or the Android notification." : "Audio is saved on your phone, including while the screen is locked."}
           </p>
         </div>
-        <Button className="mt-6 w-full" size="lg" variant={active ? "destructive" : "default"}
+        <Button className="mt-6 h-16 w-full text-base" size="lg" variant={active ? "destructive" : "default"}
           disabled={busy || !ready} onClick={() => void (active ? stop() : start())}>
           {active ? <Square /> : <Mic />}
           {busy ? "Please wait…" : active ? "Stop & save meeting" : "Start recording"}
         </Button>
-        <p className="text-muted-foreground mt-4 text-sm leading-6">
-          Audio uploads while this screen is open. Reopen it after recording to upload remaining audio and create your notes. Keep the app’s microphone notification enabled.
-        </p>
+        <details className="mt-5 text-muted-foreground">
+          <summary className="cursor-pointer text-sm font-medium">Meeting details</summary>
+          <label htmlFor="native-title" className="mt-4 block text-sm font-medium">Meeting name <span className="text-muted-foreground font-normal">(optional)</span></label>
+          <Input id="native-title" className="mt-2 h-11 rounded-lg" value={active?.title ?? title}
+            onChange={(event) => setTitle(event.target.value)} maxLength={160} disabled={!!active || busy}
+            placeholder="Breeze will name your meeting for you" />
+          {active ? <p className="text-muted-foreground mt-2 text-xs leading-5">You can rename this meeting after recording.</p> : null}
+          <p className="text-muted-foreground mt-3 text-xs leading-5">Reopen this screen after recording to finish uploading audio and create your notes.</p>
+        </details>
+
         {active?.error ? <p role="alert" className="text-destructive mt-4 text-sm">{active.error}</p> : null}
         {error || actionError ? <div role="alert" className="text-destructive border-destructive/25 bg-destructive/5 mt-4 flex gap-2 rounded-xl border p-4 text-sm"><TriangleAlert className="size-4 shrink-0" /><span>{actionError || error} Saved audio stays on your phone.</span></div> : null}
       </section>
       {recordings.some((item) => item.stopped) ? (
-        <section className="bg-card rounded-2xl border p-5 sm:p-8">
-          <h2 className="font-display text-2xl">Saved on this phone</h2>
+        <details className="bg-card rounded-2xl border p-5 sm:p-8">
+          <summary className="cursor-pointer text-sm font-medium">Saved on this phone</summary>
           <ul className="mt-4 space-y-4">
             {recordings.filter((item) => item.stopped).map((item) => {
               const status = phoneAudioStatus(item, uploadingId === item.id);
@@ -170,7 +225,7 @@ export function NativeMeetingRecorder({ userId, onFinished }: {
             </li>; })}
           </ul>
           {recordings.some((item) => item.stopped && !item.finished) ? <Button variant="secondary" className="mt-5" disabled={busy} onClick={() => void refresh()}><UploadCloud />Retry uploading</Button> : null}
-        </section>
+        </details>
       ) : null}
     </div>
   );

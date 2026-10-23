@@ -286,3 +286,19 @@ Está preparada y probada una utilidad para cifrar/restaurar un respaldo de firm
 con un único secreto del propietario; **todavía no está activada**. Ver
 [preparación de migración y respaldo](android-signing-migration.md). El APK actual
 no cambió y su firma original sigue bloqueando nuevas publicaciones compatibles.
+
+## Inicio rápido de grabación
+
+**New meeting** en la lista es el acceso principal y abre una grabación de
+micrófono directamente, sin pedir nombre ni fuente. El permiso de micrófono del
+sistema sigue siendo necesario. El pedido de inicio se consume en esta visita:
+recargar la página no inicia otra grabación. Abrir `/meetings/new` directamente
+permite iniciar manualmente o subir un archivo.
+
+La web espera a identificar el puente Android antes de montar un grabador. En
+el APK se consulta primero el estado local; una grabación ya activa se muestra
+sin crear otra. Las subidas anteriores se recuperan en segundo plano sin
+interrumpir la nueva grabación. **Meeting details** conserva el nombre opcional;
+el nombre también se puede cambiar después de grabar. Estos cambios son web y
+llegan al APK instalado sin publicar otra firma. Probar en teléfono físico un
+inicio desde **New meeting**, reabrir con una grabación activa y detener/subir.
