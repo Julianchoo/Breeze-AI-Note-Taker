@@ -289,7 +289,9 @@ no cambió y su firma original sigue bloqueando nuevas publicaciones compatibles
 
 ## Inicio rápido de grabación
 
-**New meeting** en la lista es el acceso principal y abre una grabación de
+La pantalla principal (`/meetings`) muestra un círculo grande **NEW MEETING**;
+la pestaña **My meetings** abre el historial en `/meetings/history`. El círculo
+es el acceso principal en Android, móvil y escritorio, y abre una grabación de
 micrófono directamente, sin pedir nombre ni fuente. El permiso de micrófono del
 sistema sigue siendo necesario. El pedido de inicio se consume en esta visita:
 recargar la página no inicia otra grabación. Abrir `/meetings/new` directamente

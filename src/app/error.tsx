@@ -17,7 +17,7 @@ export default function ErrorPage({ reset }: { reset: () => void }) {
             Try again
           </Button>
           <Button variant="outline" size="lg" asChild>
-            <Link href="/meetings">My meetings</Link>
+            <Link href="/meetings/history">My meetings</Link>
           </Button>
         </div>
       </div>

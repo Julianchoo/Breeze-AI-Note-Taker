@@ -93,16 +93,12 @@ export function MeetingList() {
               Conversations worth coming back to.
             </p>
           </div>
-          <div className="w-full sm:w-auto">
-            <Button asChild size="lg" className="h-16 w-full gap-3 px-8 text-base shadow-md sm:min-w-64">
-              <Link href="/meetings/new?record=1" prefetch={false}>
-                <Mic aria-hidden="true" className="size-5" />
-                New meeting
-              </Link>
-            </Button>
-            <p className="text-muted-foreground mt-2 text-center text-xs">One tap to record your microphone</p>
-            <Link href="/meetings/new" className="text-muted-foreground hover:text-foreground mt-3 block text-center text-xs underline underline-offset-4">Upload an existing recording</Link>
-          </div>
+          <Link
+            href="/meetings/new"
+            className="text-muted-foreground hover:text-foreground rounded-full px-3 py-2 text-sm transition-colors"
+          >
+            Upload a recording
+          </Link>
         </header>
 
         <div className="mt-10 h-px rule-fade sm:mt-14" />

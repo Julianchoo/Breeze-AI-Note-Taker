@@ -10,7 +10,7 @@ export default function NotFound() {
           The page moved, or never existed. Your meetings are still where you left them.
         </p>
         <Button asChild size="lg">
-          <Link href="/meetings">My meetings</Link>
+          <Link href="/meetings/history">My meetings</Link>
         </Button>
       </div>
     </div>
