@@ -119,7 +119,7 @@ export function UserProfile() {
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuItem asChild className="rounded-lg px-2 py-2">
-            <Link href="/meetings">
+            <Link href="/meetings/history">
               <NotebookPen />
               My meetings
             </Link>

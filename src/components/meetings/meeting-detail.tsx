@@ -289,7 +289,7 @@ export function MeetingDetailView({ id }: { id: string }) {
       await request(endpoint, { method: "DELETE" });
       // Best effort: a leftover local copy only costs this device some storage.
       if (userId) await deleteRecording(userId, id).catch(() => {});
-      router.replace("/meetings");
+      router.replace("/meetings/history");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not delete meeting.");
       setDeleting(false);
@@ -338,7 +338,7 @@ export function MeetingDetailView({ id }: { id: string }) {
                 Try again
               </Button>
               <Link
-                href="/meetings"
+                href="/meetings/history"
                 className="text-muted-foreground hover:text-foreground inline-flex items-center gap-2 text-sm transition-colors"
               >
                 <ArrowLeft className="size-4" aria-hidden="true" />
@@ -449,7 +449,7 @@ export function MeetingDetailView({ id }: { id: string }) {
     <div className="glow-bg">
       <div className="mx-auto max-w-4xl px-4 py-10 sm:py-16">
         <Link
-          href="/meetings"
+          href="/meetings/history"
           className="text-muted-foreground hover:text-foreground group mb-10 inline-flex items-center gap-2 text-sm transition-colors"
         >
           <ArrowLeft

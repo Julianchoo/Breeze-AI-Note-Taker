@@ -26,7 +26,7 @@ export function NewMeeting({ userId, autoStart = false }: { userId: string; auto
     <div className="glow-bg">
       <div className="mx-auto max-w-2xl px-4 py-8 sm:py-14">
         <Link
-          href="/meetings"
+          href="/meetings/history"
           className="text-muted-foreground hover:text-foreground hover:bg-accent -ml-2 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm transition-colors"
         >
           <ArrowLeft className="size-4" />
