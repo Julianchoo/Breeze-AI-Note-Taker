@@ -3,10 +3,13 @@ import type { NativeRecording } from "../src/lib/native-android-recorder";
 
 async function main() {
   const modulePath = "../src/lib/native-android-recorder.ts";
-  const { parseNativeResult, syncNativeRecording, nativeRecordings, exportNativeRecording } = await import(modulePath);
+  const { parseNativeResult, syncNativeRecording, nativeRecordings, exportNativeRecording, interruptedByCall } = await import(modulePath);
   assert.throws(() => parseNativeResult('{"ok":false,"error":"Storage full"}'), /Storage full/);
   assert.throws(() => parseNativeResult('{"recordings":[]}'), /invalid response/);
   assert.throws(() => parseNativeResult("broken"));
+  assert.equal(interruptedByCall({error: "Otra aplicación o una llamada interrumpió el micrófono"}), true, "the service's call message is recognised");
+  assert.equal(interruptedByCall({error: "Se necesita permiso para usar el micrófono"}), false);
+  assert.equal(interruptedByCall({}), false);
   const state: NativeRecording = {id: "meeting", userId: "user", title: "Test", chunks: 2,
     samples: 32000, stopped: true, finished: false, startedAt: 0, uploaded: []};
   const requests: string[] = [];
