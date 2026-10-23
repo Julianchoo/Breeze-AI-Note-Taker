@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Mic, Square, UploadCloud, TriangleAlert, Download } from "lucide-react";
+import { Mic, Square, UploadCloud, TriangleAlert, Download, PhoneOff } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { phoneAudioStatus } from "@/lib/audio-status";
 import {
-  checkedNativeRequest, exportNativeRecording, nativeRecordings, startNativeRecording, stopNativeRecording,
+  checkedNativeRequest, exportNativeRecording, interruptedByCall, nativeRecordings, startNativeRecording, stopNativeRecording,
   syncNativeRecording, type NativeRecording,
 } from "@/lib/native-android-recorder";
 
@@ -62,7 +62,8 @@ export function NativeMeetingRecorder({ userId, onFinished, autoStart = false }:
           // Upload completion may arrive after a manual start. Re-read the service rather
           // than using the snapshot from before the awaited upload.
           const phoneIsRecording = nativeRecordings(userId).some((entry) => !entry.stopped && !entry.finished);
-          if (!starting.current && !phoneIsRecording && (startedHere.current === item.id || (!autoStart && !startedHere.current))) {
+          // A call cut this recording short: stay here so the explanation is seen before the notes.
+          if (!starting.current && !phoneIsRecording && !interruptedByCall(item) && (startedHere.current === item.id || (!autoStart && !startedHere.current))) {
             onFinishedRef.current(item.id);
             break;
           }
@@ -175,6 +176,8 @@ export function NativeMeetingRecorder({ userId, onFinished, autoStart = false }:
       setActionError(cause instanceof Error ? cause.message : "Could not export saved audio.");
     }
   }
+  const latest = recordings.reduce<NativeRecording | undefined>((newest, item) => !newest || item.startedAt > newest.startedAt ? item : newest, undefined);
+  const callStopped = !active && latest?.stopped && interruptedByCall(latest) ? latest : undefined;
   const seconds = active ? Math.max(0, Math.floor((now - active.startedAt) / 1000)) : 0;
   return (
     <div className="space-y-6">
@@ -196,6 +199,12 @@ export function NativeMeetingRecorder({ userId, onFinished, autoStart = false }:
           {active ? <Square /> : <Mic />}
           {busy ? "Please wait…" : active ? "Stop & save meeting" : "Start recording"}
         </Button>
+        {active ? null : (
+          <p className="text-muted-foreground mx-auto mt-3 flex max-w-xs items-start gap-2 text-xs leading-5">
+            <PhoneOff className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+            WhatsApp and phone calls on this phone can&apos;t be recorded: Android gives the microphone to the call.
+          </p>
+        )}
         <details className="mt-5 text-muted-foreground">
           <summary className="cursor-pointer text-sm font-medium">Meeting details</summary>
           <label htmlFor="native-title" className="mt-4 block text-sm font-medium">Meeting name <span className="text-muted-foreground font-normal">(optional)</span></label>
@@ -206,6 +215,18 @@ export function NativeMeetingRecorder({ userId, onFinished, autoStart = false }:
           <p className="text-muted-foreground mt-3 text-xs leading-5">Reopen this screen after recording to finish uploading audio and create your notes.</p>
         </details>
 
+        {callStopped ? (
+          <div role="alert" className="border-destructive/25 bg-destructive/5 mt-4 flex gap-3 rounded-xl border p-4 text-sm leading-6">
+            <PhoneOff className="text-destructive mt-1 size-4 shrink-0" aria-hidden="true" />
+            <div>
+              <p className="font-medium">A call stopped the recording</p>
+              <p className="text-muted-foreground mt-1">
+                During a WhatsApp or phone call, Android lets only the call app use the microphone, so Breeze can&apos;t record it from this phone. To record a call, join it from WhatsApp Web on a computer and record with Breeze there using meeting-tab audio, or put the call on speaker and record from another device.
+              </p>
+              {callStopped.finished ? <Link href={`/meetings/${callStopped.id}`} className="text-primary mt-2 inline-block underline underline-offset-4">Open the saved part</Link> : null}
+            </div>
+          </div>
+        ) : null}
         {active?.error ? <p role="alert" className="text-destructive mt-4 text-sm">{active.error}</p> : null}
         {error || actionError ? <div role="alert" className="text-destructive border-destructive/25 bg-destructive/5 mt-4 flex gap-2 rounded-xl border p-4 text-sm"><TriangleAlert className="size-4 shrink-0" /><span>{actionError || error} Saved audio stays on your phone.</span></div> : null}
       </section>

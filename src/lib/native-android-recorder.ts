@@ -60,6 +60,10 @@ export function exportNativeRecording(id: string, userId: string) {
   if (!recorder.exportRecording) throw new Error("Update the Android app to export saved audio.");
   parseNativeResult(recorder.exportRecording(id, userId));
 }
+// RecordingService gives up after ~3 s of OS-silenced capture, which is what a WhatsApp or phone call on this phone causes.
+export function interruptedByCall(recording: NativeRecording) {
+  return !!recording.error?.includes("llamada");
+}
 export function stopNativeRecording() {
   return parseNativeResult<{recording: NativeRecording}>(bridge().stopRecording()).recording;
 }

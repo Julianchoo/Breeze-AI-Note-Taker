@@ -53,6 +53,17 @@ elegida en el selector de archivos de Android. Los originales privados se
 conservan hasta desinstalar la aplicación o borrar sus datos; controlar el espacio
 disponible y guardar copias antes de hacerlo.
 
+**Llamadas en el mismo teléfono:** durante una llamada de WhatsApp o telefónica,
+Android entrega el micrófono sólo a la app de la llamada y Breeze recibe silencio;
+tras unos 3 segundos el servicio detiene la grabación y conserva lo grabado. No
+hay forma de que una app grabe esa llamada desde el mismo teléfono. El grabador
+lo advierte antes de empezar y, si una llamada corta la grabación, muestra la
+explicación en lugar de abrir la reunión automáticamente. Para grabar una llamada,
+usar WhatsApp Web en una computadora con Breeze web y el audio de la pestaña, o
+poner la llamada en altavoz y grabar desde otro dispositivo. La detección usa el
+mensaje de error del servicio (contiene "llamada"); si se cambia ese texto en
+`RecordingService.java`, actualizar `interruptedByCall`.
+
 Las llamadas, la revocación del permiso, el reinicio, **Forzar detención** o ciertas
 restricciones del fabricante pueden interrumpir la captura. No se reanuda el
 micrófono automáticamente tras un reinicio o un cierre forzado. Al abrir de nuevo,
