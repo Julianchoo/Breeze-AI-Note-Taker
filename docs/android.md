@@ -300,7 +300,7 @@ no cambió y su firma original sigue bloqueando nuevas publicaciones compatibles
 
 ## Inicio rápido de grabación
 
-La pantalla principal (`/meetings`) muestra un círculo grande **Start recording**;
+La pantalla principal (`/meetings`) muestra un círculo grande **Record**;
 la pestaña **My meetings** abre el historial en `/meetings/history`. El círculo
 es el acceso principal en Android, móvil y escritorio, y abre una grabación de
 micrófono directamente, sin pedir nombre ni fuente. El permiso de micrófono del
