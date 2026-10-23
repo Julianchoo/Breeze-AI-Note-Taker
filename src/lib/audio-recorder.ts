@@ -46,48 +46,66 @@ export async function captureAudio(
         node.port.postMessage("stop");
       }
     };
+    const sources = new Map<
+      MediaStream,
+      { source: MediaStreamAudioSourceNode; gain: GainNode; cleanup: () => void }
+    >();
+    const rebalance = () => {
+      for (const { gain } of sources.values()) gain.gain.value = 1 / sources.size;
+    };
+    const removeStream = (stream: MediaStream) => {
+      const entry = sources.get(stream);
+      if (!entry) return;
+      entry.cleanup();
+      entry.source.disconnect();
+      entry.gain.disconnect();
+      sources.delete(stream);
+      stream.getTracks().forEach((track) => track.stop());
+      rebalance();
+    };
+    // Optional sources can come and go without interrupting the microphone or the worklet.
+    const addStream = (stream: MediaStream, onEnded?: () => void) => {
+      if (stopping) {
+        stream.getTracks().forEach((track) => track.stop());
+        throw new Error("The recording has already stopped.");
+      }
+      if (!stream.getAudioTracks().length) throw new Error("This source has no audio.");
+      const source = context.createMediaStreamSource(new MediaStream(stream.getAudioTracks()));
+      const gain = context.createGain();
+      source.connect(gain).connect(node);
+      const lost = () => {
+        if (stopping) return;
+        if (onEnded) {
+          removeStream(stream);
+          onEnded();
+        } else {
+          onLost("An audio source disconnected. Your recording has been stopped and preserved.");
+          stop();
+        }
+      };
+      const tracks = stream.getTracks();
+      for (const track of tracks) track.addEventListener("ended", lost);
+      for (const track of stream.getAudioTracks()) track.addEventListener("mute", lost);
+      sources.set(stream, {
+        source,
+        gain,
+        cleanup: () => {
+          for (const track of tracks) {
+            track.removeEventListener("ended", lost);
+            track.removeEventListener("mute", lost);
+          }
+        },
+      });
+      rebalance();
+      return () => removeStream(stream);
+    };
     const dispose = () => {
       stopping = true;
-      streams.forEach((stream) => stream.getTracks().forEach((track) => track.stop()));
+      for (const stream of sources.keys()) removeStream(stream);
       node.disconnect();
       void context.close();
     };
-    for (const stream of streams) {
-      const gain = context.createGain();
-      gain.gain.value = 1 / streams.length;
-      context
-        .createMediaStreamSource(new MediaStream(stream.getAudioTracks()))
-        .connect(gain)
-        .connect(node);
-      stream.getTracks().forEach((track) =>
-        track.addEventListener(
-          "ended",
-          () => {
-            if (!stopping) {
-              onLost(
-                "An audio source disconnected. Your recording has been stopped and preserved."
-              );
-              stop();
-            }
-          },
-          { once: true }
-        )
-      );
-      stream.getAudioTracks().forEach((track) =>
-        track.addEventListener(
-          "mute",
-          () => {
-            if (!stopping) {
-              onLost(
-                "An audio source became unavailable. Your recording has been stopped and preserved."
-              );
-              stop();
-            }
-          },
-          { once: true }
-        )
-      );
-    }
+    for (const stream of streams) addStream(stream);
     context.onstatechange = () => {
       if (!stopping && context.state === "suspended") {
         onLost("Audio capture was suspended. Stop and save the recording before continuing.");
@@ -108,7 +126,7 @@ export async function captureAudio(
       }
     };
     await context.resume();
-    return { stop, dispose };
+    return { stop, dispose, addStream };
   } catch (error) {
     streams.forEach((stream) => stream.getTracks().forEach((track) => track.stop()));
     await context.close();

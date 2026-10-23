@@ -42,9 +42,10 @@ for (const rate of [16000, 44100, 48000]) {
   }
   processor.finish();
   const chunks = messages.filter((message) => message.samples);
+  // Uniform energy chooses the earliest quiet cut (105 s) inside the 120 s buffer.
   assert.deepEqual(
     chunks.map((chunk) => chunk.samples!.length),
-    [16000 * 120, 16000]
+    [16000 * 105, 16000 * 16]
   );
   assert.equal(processor.total, 16000 * 121);
   assert.ok(Math.abs(chunks[0]!.samples![0]! - 16384) <= 1);
