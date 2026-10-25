@@ -1,5 +1,7 @@
 import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
 import "./globals.css";
+import { HeaderSwitch } from "@/components/header-switch";
+import { IslandNav } from "@/components/home/island-nav";
 import { NativeAppFrame } from "@/components/native-app-frame";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
@@ -56,7 +58,9 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <NativeAppFrame>
-            <SiteHeader />
+            <HeaderSwitch home={<IslandNav />}>
+              <SiteHeader />
+            </HeaderSwitch>
             <main id="main-content" className="flex-1">
               {children}
             </main>

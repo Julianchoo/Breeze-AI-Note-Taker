@@ -397,7 +397,7 @@ Custom icons per state (`CircleCheckIcon`, `InfoIcon`, `TriangleAlertIcon`, `Oct
 
 ## Home page (landing system)
 
-The public home (`src/app/page.tsx`, `src/components/home/*`) deliberately does **not** follow the warm editorial system above. It follows the vendored landing skill (`.claude/skills/landing-page-design/SKILL.md`, Part B). Everything else (signed in app, auth pages, share pages, Android page, header, footer) still follows the warm editorial system. Do not copy landing patterns into the app, and do not use editorial utilities (`font-display`, `.eyebrow`, `.glow-bg`, `.rule-fade`, `animate-fade-up`) on the home.
+The public home (`src/app/page.tsx`, `src/components/home/*`) deliberately does **not** follow the warm editorial system above. It follows the vendored landing skill (`.claude/skills/landing-page-design/SKILL.md`, Part B). Everything else (signed in app, auth pages, share pages, Android page, footer, and the standard `SiteHeader` on every route except `/`) still follows the warm editorial system. The home replaces `SiteHeader` with its own island nav (below). Do not copy landing patterns into the app, and do not use editorial utilities (`font-display`, `.eyebrow`, `.glow-bg`, `.rule-fade`, `animate-fade-up`) on the home.
 
 ### Scope and tokens
 
@@ -410,11 +410,13 @@ Everything sits inside a `.landing` wrapper defined in `globals.css` (outside `@
 | `--muted` / `--secondary` | unchanged | `#272727` |
 | `--accent` (hover surfaces) | unchanged | `#313131` |
 | `--landing-heading-from` → `--landing-heading-to` | `#000000` → `#666666` | `#FFFFFF` → `#9B9B9B` |
+| `--landing-band` (`bg-band` utility) | `oklch(0.948 0.011 78)` | `#181818` |
 | `--radius` | `0.5rem` | `0.5rem` |
 
+- **Token scope:** the same tokens are also set on `.landing-island` (the home header, which renders outside `.landing` in the root layout); only `.landing` paints a background.
 - **Dark backgrounds** may only use `#000000`, `#181818`, `#1F1F1F`, `#272727`, `#313131`, `#131209`. `.dark body:has(.landing)` paints the canvas `#131209` so the shared header and footer sit on the same surface.
 - **Primary** stays the terracotta `primary` token: CTA, labels, icon chips, small highlights.
-- **Radius:** with `--radius: 0.5rem` the project scale equals Tailwind's defaults (`sm` 4px, `md` 6px, `lg` 8px, `xl` 12px); `rounded-2xl` would be 18px, so the home uses `rounded-3xl` (24px) for large cards instead. Nested shapes follow `inner = outer − gap` when the gap is under 32px and the result is above 2px.
+- **Radius:** with `--radius: 0.5rem` the project scale equals Tailwind's defaults (`sm` 4px, `md` 6px, `lg` 8px, `xl` 12px); `rounded-2xl` would be 18px, so the home uses `rounded-3xl` (24px) for large cards and `rounded-4xl` (32px) for the two framed moments (the product demo bezel and the final CTA panel). Nested shapes follow `inner = outer − gap` when the gap is under 32px and the result is above 2px.
 - **Flat surfaces:** no background gradients, no `.glow-bg`, no single sided borders (cards are fully bordered or not at all; dividers inside the demo are `h-px bg-border` rules or surface changes).
 
 ### Hero heading gradient
@@ -444,7 +446,44 @@ Phosphor, imported from `@phosphor-icons/react/dist/ssr` using the `…Icon` exp
 - `TaglineReveal` (`src/components/home/tagline-reveal.tsx`): the mandatory large tagline section. Words start at `text-foreground/30` and light one at a time in reading order (70ms apart) as they cross a trigger line at 65% of the viewport, one IntersectionObserver over the words, never a scroll listener. Same progressive enhancement rules as `Reveal`.
 - The global reduced motion guard still applies.
 
+### Island nav (home header)
+
+`src/components/home/island-nav.tsx`, chosen over `SiteHeader` by `HeaderSwitch` (`src/components/header-switch.tsx`, client) when `usePathname() === "/"`. The pathname is identical on the server and during hydration, so there is no mismatch or header swap after load. The home always renders signed out (signed in visitors are redirected to `/meetings`).
+
+- **Closed:** a sticky (`top-0`), pointer transparent `<header class="island-nav landing-island">` holding a glass pill: `mt-6 mx-auto w-max rounded-full border border-foreground/10 bg-background/70 backdrop-blur-xl p-2` with a soft foreground tinted shadow. Contents: logo (Phosphor `WindIcon` in a primary circle plus Geist "breeze"), then from `sm` a hairline divider, a one tap light/dark button and a quiet ghost "Sign in" link, then the menu button. On phones the pill is logo plus menu button only. The page's single primary action stays the hero CTA.
+- **Menu button:** two `h-0.5 w-4` lines absolutely positioned at `-translate-y-1` / `translate-y-1`; open, both go to `translate-y-0` and turn `rotate-45` / `-rotate-45` into an X (700ms `ease-fluid`). `aria-expanded`, `aria-controls`, label "Open menu" / "Close menu".
+- **Overlay:** `fixed inset-0`, `bg-white/80 dark:bg-black/80 backdrop-blur-3xl` (the skill's literal white/black glass; the only non token colours on the home besides the Google mark), `role="dialog" aria-modal`, `inert` and `opacity-0 pointer-events-none` while closed. Items: Sign in, Android app ("Update Android app" inside the native app), How it works (`#how-it-works`), Questions (`#faq`) as `text-4xl font-semibold` rows, then a Light / Dark / System radio group. Each row rises from `translate-y-12 opacity-0` with `delay-100`, `delay-150`, `delay-200`… while opening; closing drops the delays.
+- **Behaviour:** opening locks page scroll (`overflow: hidden` on `<html>` plus scrollbar width padding), focuses the first link and traps Tab inside the header; Escape closes and returns focus to the menu button; any link closes it. Section links close first, then scroll, focus the section (`tabIndex={-1}`, `scroll-mt-24`) and set the hash. The global reduced motion guard collapses all of it to instant changes.
+- **Skip link** is rendered by the island too and targets `#main-content`, like `SiteHeader`.
+- **Android WebView:** inside `NativeAppFrame`, `.island-nav` gets the same `top: var(--native-top-inset)` as `.site-header`, and `.island-menu` adds the inset to its top padding (see `docs/android.md`).
+
+### Section rhythm and surfaces
+
+Sections alternate between the page background and the flat `bg-band` surface, and vary their layout so the page never reads as a stack of identical cards:
+
+1. **Hero** on the page background. `h1` steps to `text-6xl` from `sm`. The product demo sits in a wide `max-w-6xl` column, framed by a translucent `rounded-4xl` bezel (`bg-card/60 p-2`, large foreground tinted shadow) around the `rounded-3xl` window, and straddles a `bg-band` block that fills the lower half, so it bridges into the next section.
+2. **Problem to solution** on the band: heading on the left (5 of 12 columns), a layered comparison on the right. "Without Breeze" is a receding dashed outline card in muted text; "With Breeze" overlaps it (`-mt-10 sm:ml-12`) as a solid `bg-primary text-primary-foreground` card with a primary tinted shadow. This is the one large primary fill on the home.
+3. **Benefits** on the page background as a bento (`lg:grid-cols-6`: 4 + 2, then 2 + 2 + 2; two columns from `sm`). Each card is `rounded-3xl p-3` around a `rounded-xl bg-band` well holding a product vignette, with the title and copy below.
+4. **How it works** on the band as an open timeline: icon circle plus hairline, a faint `font-mono text-5xl` step number, title and copy. No cards.
+5. **Tagline reveal** on the page background with a primary logo mark above it.
+6. **FAQ** on the band, heading sticky on the left from `lg`, answers on the right.
+7. **Final CTA** on the page background in a `rounded-4xl` card: label, `text-5xl` heading, one line of copy, the three reassurances (bordered chips from `sm`, plain rows on phones), then the same CTA as the hero.
+
+### Benefit vignettes
+
+`src/components/home/benefit-visuals.tsx` holds five static, `aria-hidden` mini UIs built in JSX (no images), reusing ProductDemo's fictional meeting (Q3 launch planning on Sep 29, 2026, 43 min; Maya, Daniel, Priya) and showing only what the app does:
+
+| Vignette | Shows | Backed by |
+|---|---|---|
+| `SummaryVisual` | Decisions, Next steps (owners), Open questions & risks | Summary prompt sections in `src/lib/meetings.ts` |
+| `SpeakersVisual` | Renaming "S2" to Daniel; transcript lines labelled by name | Speakers section in `meeting-detail.tsx` |
+| `NoteVisual` | "Notes for the AI" with a live `n/2000` count and "Process meeting" | AI context form (2000 character limit) |
+| `ShareVisual` | "Anyone with the link", view only link, "AI summary" / "Transcript" checkboxes | Share dialog "Shared sections" |
+| `SearchVisual` | Search for "rollback" with the match highlighted in each excerpt | Meeting list search and `Highlight` |
+
+Vignettes use `bg-card rounded-lg border shadow-xs` surfaces, Tailwind type steps, Phosphor icons and semantic tokens only. Keep their content consistent with the demo and true to the product when either changes.
+
 ### Structure and SEO
 
-Hero (label, gradient `h1`, subheading, CTA, one factual proof line, `ProductDemo`), problem to solution, five benefits, three steps, tagline reveal, FAQ (native `<details>`), risk reversal with the final CTA. The FAQ array in `src/components/home/faq.tsx` feeds both the visible list and the `FAQPage` JSON-LD. The page sets its own title and description.
+Island nav, hero (label, gradient `h1`, subheading, CTA, one factual proof line, `ProductDemo`), problem to solution, five benefits (bento with vignettes), three steps (`#how-it-works`), tagline reveal, FAQ (`#faq`, native `<details>`), risk reversal with the final CTA. The FAQ array in `src/components/home/faq.tsx` feeds both the visible list and the `FAQPage` JSON-LD. The page sets its own title and description.
 

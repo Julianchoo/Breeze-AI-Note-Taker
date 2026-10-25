@@ -270,8 +270,10 @@ La web detecta `BreezeAndroid` y aplica `NativeAppFrame` exclusivamente dentro d
 la app. Reserva arriba y abajo al menos 32 y 48 píxeles CSS, respectivamente,
 y utiliza `env(safe-area-inset-*)` cuando el WebView informa espacios mayores.
 El encabezado sticky y las notificaciones respetan ese espacio; el pie queda
-alcanzable al desplazarse. Chrome y otros navegadores sin el bridge mantienen
-su diseño normal.
+alcanzable al desplazarse.
+En la portada (`/`), el encabezado flotante (`.island-nav`) y su menú a pantalla
+completa (`.island-menu`) reservan el mismo espacio superior.
+Chrome y otros navegadores sin el bridge mantienen su diseño normal.
 
 Es una corrección web para el APK ya instalado, no una medición exacta del teléfono:
 la versión antigua no expone `WindowInsets` y algunos WebViews reportan cero.
