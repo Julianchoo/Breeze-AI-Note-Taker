@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Mic, Square, UploadCloud, TriangleAlert, Download, PhoneOff } from "lucide-react";
+import {
+  CaretDownIcon, CheckCircleIcon, CircleNotchIcon, DeviceMobileIcon, DownloadSimpleIcon, MicrophoneIcon, PhoneSlashIcon,
+  SlidersHorizontalIcon, StopIcon, UploadSimpleIcon, WarningIcon,
+} from "@phosphor-icons/react/dist/ssr";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +14,13 @@ import {
   checkedNativeRequest, exportNativeRecording, interruptedByCall, nativeRecordings, startNativeRecording, stopNativeRecording,
   syncNativeRecording, type NativeRecording,
 } from "@/lib/native-android-recorder";
+
+/* Landing system classes (DESIGN.md "Landing system"). Markup only: the bridge calls above and below
+   are unchanged. */
+const SUMMARY =
+  "ease-fluid hover:bg-accent focus-visible:ring-ring/50 flex cursor-pointer list-none items-center gap-2 rounded-xl px-3 py-3 text-sm font-semibold transition-colors duration-300 focus-visible:ring-[3px] focus-visible:outline-none [&::-webkit-details-marker]:hidden";
+const ALERT =
+  "text-destructive border-destructive/25 bg-destructive/5 mt-4 flex items-start gap-2 rounded-xl border px-4 py-3 text-sm";
 
 export function NativeMeetingRecorder({ userId, onFinished, autoStart = false }: {
   userId: string; onFinished: (id: string) => void; autoStart?: boolean;
@@ -180,72 +190,95 @@ export function NativeMeetingRecorder({ userId, onFinished, autoStart = false }:
   const callStopped = !active && latest?.stopped && interruptedByCall(latest) ? latest : undefined;
   const seconds = active ? Math.max(0, Math.floor((now - active.startedAt) / 1000)) : 0;
   return (
-    <div className="space-y-6">
-      <section className="bg-card animate-fade-up rounded-2xl border p-5 sm:p-8">
-        <div className="px-4 py-6 text-center">
-          <p className="eyebrow flex items-center justify-center gap-2">
-            {active ? <span className="bg-destructive animate-pulse-ring size-2 rounded-full" aria-hidden="true" /> : null}
+    <div className="flex flex-col gap-6">
+      <section className="bg-card animate-landing-rise rounded-3xl border p-3 shadow-xs [animation-delay:80ms]">
+        {/* Outer 24px radius, 12px gap: 12px well. */}
+        <div
+          className={`ease-fluid rounded-xl px-4 py-10 text-center transition-colors duration-700 ${active ? "bg-destructive/8" : "bg-band"}`}
+        >
+          <span className="bg-card inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold">
+            <span
+              aria-hidden="true"
+              className={`size-2 rounded-full ${active ? "bg-destructive animate-pulse-ring" : "bg-muted-foreground/40"}`}
+            />
             {active ? "Recording microphone" : "Android microphone"}
-          </p>
-          <p className="mt-5 font-mono text-5xl tabular-nums" role="timer" aria-label="Recording duration">
+          </span>
+          <p className={`ease-fluid mt-6 font-mono text-5xl tracking-tight tabular-nums transition-colors duration-700 sm:text-6xl ${active ? "text-foreground" : "text-muted-foreground/45"}`} role="timer" aria-label="Recording duration">
             {String(Math.floor(seconds / 3600)).padStart(2, "0")}:{String(Math.floor(seconds / 60) % 60).padStart(2, "0")}:{String(seconds % 60).padStart(2, "0")}
           </p>
-          <p className="text-muted-foreground mt-4 text-sm leading-6">
+          <p className="text-muted-foreground mx-auto mt-4 max-w-xs text-sm text-pretty">
             {active ? "You can lock your screen or use other apps. Stop from here or the Android notification." : "Audio is saved on your phone, including while the screen is locked."}
           </p>
         </div>
-        <Button className="mt-6 h-16 w-full text-base" size="lg" variant={active ? "destructive" : "default"}
-          disabled={busy || !ready} onClick={() => void (active ? stop() : start())}>
-          {active ? <Square /> : <Mic />}
-          {busy ? "Please wait…" : active ? "Stop & save meeting" : "Start recording"}
-        </Button>
-        {active ? null : (
-          <p className="text-muted-foreground mx-auto mt-3 flex max-w-xs items-start gap-2 text-xs leading-5">
-            <PhoneOff className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-            WhatsApp and phone calls on this phone can&apos;t be recorded: Android gives the microphone to the call.
-          </p>
-        )}
-        <details className="mt-5 text-muted-foreground">
-          <summary className="cursor-pointer text-sm font-medium">Meeting details</summary>
-          <label htmlFor="native-title" className="mt-4 block text-sm font-medium">Meeting name <span className="text-muted-foreground font-normal">(optional)</span></label>
-          <Input id="native-title" className="mt-2 h-11 rounded-lg" value={active?.title ?? title}
-            onChange={(event) => setTitle(event.target.value)} maxLength={160} disabled={!!active || busy}
-            placeholder="Breeze will name your meeting for you" />
-          {active ? <p className="text-muted-foreground mt-2 text-xs leading-5">You can rename this meeting after recording.</p> : null}
-          <p className="text-muted-foreground mt-3 text-xs leading-5">Reopen this screen after recording to finish uploading audio and create your notes.</p>
-        </details>
-
-        {callStopped ? (
-          <div role="alert" className="border-destructive/25 bg-destructive/5 mt-4 flex gap-3 rounded-xl border p-4 text-sm leading-6">
-            <PhoneOff className="text-destructive mt-1 size-4 shrink-0" aria-hidden="true" />
-            <div>
-              <p className="font-medium">A call stopped the recording</p>
-              <p className="text-muted-foreground mt-1">
-                During a WhatsApp or phone call, Android lets only the call app use the microphone, so Breeze can&apos;t record it from this phone. To record a call, join it from WhatsApp Web on a computer and record with Breeze there using meeting-tab audio, or put the call on speaker and record from another device.
-              </p>
-              {callStopped.finished ? <Link href={`/meetings/${callStopped.id}`} className="text-primary mt-2 inline-block underline underline-offset-4">Open the saved part</Link> : null}
+        <div className="px-3 pt-6 pb-3">
+          <Button className="ease-fluid h-14 w-full text-base font-semibold duration-300 hover:-translate-y-0.5 active:translate-y-0" size="lg" variant={active ? "destructive" : "default"}
+            disabled={busy || !ready} onClick={() => void (active ? stop() : start())}>
+            {busy ? <CircleNotchIcon className="animate-spin" /> : active ? <StopIcon weight="fill" /> : <MicrophoneIcon weight="fill" />}
+            {busy ? "Please wait…" : active ? "Stop and save meeting" : "Start recording"}
+          </Button>
+          {active ? null : (
+            <p className="text-muted-foreground mx-auto mt-4 flex max-w-xs items-start gap-2 text-xs text-pretty">
+              <PhoneSlashIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+              WhatsApp and phone calls on this phone can&apos;t be recorded: Android gives the microphone to the call.
+            </p>
+          )}
+          <details className="group/details mt-4">
+            <summary className={SUMMARY}>
+              <SlidersHorizontalIcon className="text-muted-foreground size-4" aria-hidden="true" />
+              Meeting details
+              <CaretDownIcon className="text-muted-foreground ease-fluid ml-auto size-4 transition-transform duration-300 group-open/details:rotate-180" aria-hidden="true" />
+            </summary>
+            <div className="px-3 pt-4 pb-2">
+              <label htmlFor="native-title" className="block text-sm font-semibold">Meeting name <span className="text-muted-foreground font-normal">(optional)</span></label>
+              <Input id="native-title" className="mt-2 h-12 rounded-lg" value={active?.title ?? title}
+                onChange={(event) => setTitle(event.target.value)} maxLength={160} disabled={!!active || busy}
+                placeholder="Breeze will name your meeting for you" />
+              {active ? <p className="text-muted-foreground mt-2 text-xs text-pretty">You can rename this meeting after recording.</p> : null}
+              <p className="text-muted-foreground mt-3 text-xs text-pretty">Reopen this screen after recording to finish uploading audio and create your notes.</p>
             </div>
-          </div>
-        ) : null}
-        {active?.error ? <p role="alert" className="text-destructive mt-4 text-sm">{active.error}</p> : null}
-        {error || actionError ? <div role="alert" className="text-destructive border-destructive/25 bg-destructive/5 mt-4 flex gap-2 rounded-xl border p-4 text-sm"><TriangleAlert className="size-4 shrink-0" /><span>{actionError || error} Saved audio stays on your phone.</span></div> : null}
+          </details>
+
+          {callStopped ? (
+            <div role="alert" className="border-destructive/25 bg-destructive/5 mt-4 flex gap-3 rounded-xl border p-4 text-sm">
+              <PhoneSlashIcon className="text-destructive mt-0.5 size-4 shrink-0" aria-hidden="true" />
+              <div>
+                <p className="font-semibold">A call stopped the recording</p>
+                <p className="text-muted-foreground mt-1 text-pretty">
+                  During a WhatsApp or phone call, Android lets only the call app use the microphone, so Breeze can&apos;t record it from this phone. To record a call, join it from WhatsApp Web on a computer and record with Breeze there using meeting tab audio, or put the call on speaker and record from another device.
+                </p>
+                {callStopped.finished ? <Link href={`/meetings/${callStopped.id}`} className="text-primary mt-2 inline-block font-semibold underline underline-offset-4">Open the saved part</Link> : null}
+              </div>
+            </div>
+          ) : null}
+          {active?.error ? <div role="alert" className={ALERT}><WarningIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" /><span className="min-w-0 flex-1">{active.error}</span></div> : null}
+          {error || actionError ? <div role="alert" className={ALERT}><WarningIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" /><span className="min-w-0 flex-1">{actionError || error} Saved audio stays on your phone.</span></div> : null}
+        </div>
       </section>
       {recordings.some((item) => item.stopped) ? (
-        <details className="bg-card rounded-2xl border p-5 sm:p-8">
-          <summary className="cursor-pointer text-sm font-medium">Saved on this phone</summary>
-          <ul className="mt-4 space-y-4">
+        <details className="group/saved bg-card animate-landing-rise rounded-3xl border p-3 shadow-xs [animation-delay:160ms]">
+          <summary className={SUMMARY}>
+            <DeviceMobileIcon className="text-muted-foreground size-4" aria-hidden="true" />
+            Saved on this phone
+            <CaretDownIcon className="text-muted-foreground ease-fluid ml-auto size-4 transition-transform duration-300 group-open/saved:rotate-180" aria-hidden="true" />
+          </summary>
+          <ul className="mt-2 flex flex-col gap-2">
             {recordings.filter((item) => item.stopped).map((item) => {
               const status = phoneAudioStatus(item, uploadingId === item.id);
-              return <li key={item.id}>
-              <p className="text-sm font-medium">{item.title}</p>
-              <Badge variant={item.finished ? "success" : "secondary"} className="mt-2">{status.label}</Badge>
-              <p className="text-muted-foreground mt-2 text-sm leading-6">{status.detail}</p>
-              {item.error ? <p role="alert" className="text-destructive mt-2 text-sm">{item.error}</p> : null}
-              {item.finished ? <Link href={`/meetings/${item.id}`} className="text-primary mt-2 block text-sm underline underline-offset-4">Open meeting</Link> : null}
-              {item.chunks > 0 ? <Button variant="outline" size="sm" className="mt-2" onClick={() => exportAudio(item)}><Download />Export audio</Button> : null}
+              return <li key={item.id} className="bg-band rounded-xl p-4">
+              <p className="text-sm font-semibold">{item.title}</p>
+              <Badge variant={item.finished ? "success" : "secondary"} className="mt-2">
+                {item.finished ? <CheckCircleIcon weight="fill" aria-hidden="true" /> : uploadingId === item.id ? <CircleNotchIcon className="animate-spin" aria-hidden="true" /> : <DeviceMobileIcon aria-hidden="true" />}
+                {status.label}
+              </Badge>
+              <p className="text-muted-foreground mt-2 text-sm text-pretty">{status.detail}</p>
+              {item.error ? <p role="alert" className="text-destructive mt-2 flex items-start gap-2 text-sm"><WarningIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />{item.error}</p> : null}
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                {item.finished ? <Link href={`/meetings/${item.id}`} className="text-primary text-sm font-semibold underline underline-offset-4">Open meeting</Link> : null}
+                {item.chunks > 0 ? <Button variant="outline" size="sm" className="ease-fluid font-semibold duration-300" onClick={() => exportAudio(item)}><DownloadSimpleIcon />Export audio</Button> : null}
+              </div>
             </li>; })}
           </ul>
-          {recordings.some((item) => item.stopped && !item.finished) ? <Button variant="secondary" className="mt-5" disabled={busy} onClick={() => void refresh()}><UploadCloud />Retry uploading</Button> : null}
+          {recordings.some((item) => item.stopped && !item.finished) ? <Button variant="secondary" className="ease-fluid m-3 font-semibold duration-300" disabled={busy} onClick={() => void refresh()}><UploadSimpleIcon />Retry uploading</Button> : null}
         </details>
       ) : null}
     </div>

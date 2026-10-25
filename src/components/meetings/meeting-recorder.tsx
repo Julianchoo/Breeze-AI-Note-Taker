@@ -2,15 +2,19 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  Download,
-  Mic,
-  Monitor,
-  RotateCcw,
-  ShieldCheck,
-  Square,
-  TriangleAlert,
-  UploadCloud,
-} from "lucide-react";
+  ArrowClockwiseIcon,
+  ArrowCounterClockwiseIcon,
+  CaretDownIcon,
+  CircleNotchIcon,
+  DownloadSimpleIcon,
+  MicrophoneIcon,
+  MonitorIcon,
+  ShieldCheckIcon,
+  SlidersHorizontalIcon,
+  StopIcon,
+  UploadSimpleIcon,
+  WarningIcon,
+} from "@phosphor-icons/react/dist/ssr";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +29,16 @@ import {
   saveRecording,
   type CachedRecording,
 } from "@/lib/recording-cache";
+
+/* Landing system classes (DESIGN.md "Landing system"), shared by the recorder's buttons, disclosures
+   and alerts so every state reads the same. Markup only: no recording behaviour depends on them. */
+const MAIN_BUTTON =
+  "ease-fluid h-14 w-full text-base font-semibold duration-300 hover:-translate-y-0.5 active:translate-y-0";
+const SMALL_BUTTON = "ease-fluid font-semibold duration-300";
+const SUMMARY =
+  "ease-fluid hover:bg-accent focus-visible:ring-ring/50 flex cursor-pointer list-none items-center gap-2 rounded-xl px-3 py-3 text-sm font-semibold transition-colors duration-300 focus-visible:ring-[3px] focus-visible:outline-none [&::-webkit-details-marker]:hidden";
+const ALERT =
+  "text-destructive border-destructive/25 bg-destructive/5 mt-4 flex items-start gap-2 rounded-xl border px-4 py-3 text-sm";
 
 async function checked(response: Response) {
   const data = await response.json().catch(() => null);
@@ -467,42 +481,43 @@ export function MeetingRecorder({
   const fileBusy = filePhase !== "idle";
   const busy = phase !== "idle" || fileBusy;
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       {recoveries.length > 0 && !busy ? (
-        <section className="bg-card animate-fade-up rounded-2xl border p-5 sm:p-6">
-          <p className="eyebrow">Unfinished</p>
-          <h2 className="font-display mt-1.5 text-2xl">Pick up where you left off</h2>
-          <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
+        <section className="bg-card animate-landing-rise rounded-3xl border p-6 shadow-xs sm:p-8">
+          <p className="text-primary text-sm font-semibold">Unfinished</p>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-balance">Pick up where you left off</h2>
+          <p className="text-muted-foreground mt-2 text-sm text-pretty">
             Audio already saved on this device can be uploaded and processed. The last incomplete
-            two-minute part may be unavailable after a browser interruption.
+            two minute part may be unavailable after a browser interruption.
           </p>
-          <div className="rule-fade my-5 h-px" />
-          <ul className="space-y-2">
+          <ul className="mt-6 flex flex-col gap-2">
             {recoveries.map((item) => (
               <li
                 key={item.id}
-                className="bg-muted/40 flex flex-wrap items-center justify-between gap-3 rounded-lg px-4 py-3"
+                className="bg-band flex flex-wrap items-center justify-between gap-3 rounded-xl px-4 py-3"
               >
                 <span className="min-w-0 flex-1 truncate text-sm">
-                  <span className="font-medium">{item.title}</span>
-                  <span className="text-muted-foreground"> · {item.chunks} parts</span>
+                  <span className="font-semibold">{item.title}</span>
+                  <span className="text-muted-foreground font-mono tabular-nums"> · {item.chunks} parts</span>
                 </span>
                 {item.chunks ? (
                   <Button
                     variant="outline"
                     size="sm"
+                    className={SMALL_BUTTON}
                     onClick={() => {
                       active.current = item;
                       void finish(item);
                     }}
                   >
-                    <UploadCloud />
+                    <UploadSimpleIcon />
                     Recover
                   </Button>
                 ) : (
                   <Button
                     variant="ghost"
                     size="sm"
+                    className={SMALL_BUTTON}
                     onClick={() =>
                       void deleteRecording(userId, item.id).then(() =>
                         setRecoveries((items) => items.filter((row) => row.id !== item.id))
@@ -518,39 +533,44 @@ export function MeetingRecorder({
         </section>
       ) : null}
 
-      <div className="bg-card animate-fade-up rounded-2xl border p-5 shadow-sm sm:p-8">
-        {/* Step 3 — the clock. The hero of this screen once the tape is rolling. */}
+      <div className="bg-card animate-landing-rise rounded-3xl border p-3 shadow-xs [animation-delay:80ms]">
+        {/* The clock: the hero of this screen once the tape is rolling. Outer 24px radius, 12px gap: 12px well. */}
         <div
-          className={`rounded-2xl px-4 py-8 text-center transition-colors duration-500 ${
+          className={`ease-fluid rounded-xl px-4 py-10 text-center transition-colors duration-700 ${
             phase === "recording"
-              ? "bg-destructive/5"
+              ? "bg-destructive/8"
               : phase === "saving"
-                ? "bg-primary/5"
-                : "bg-muted/40"
+                ? "bg-primary/8"
+                : "bg-band"
           }`}
         >
-          <div className="flex items-center justify-center gap-2.5">
-            <span
-              className={`size-2.5 rounded-full transition-colors ${
-                phase === "recording"
-                  ? "bg-destructive animate-pulse-ring"
-                  : phase === "saving"
-                    ? "bg-primary"
-                    : "bg-muted-foreground/40"
-              }`}
-            />
-            <span className="eyebrow">
-              {phase === "recording"
-                ? "Recording"
-                : phase === "saving"
-                  ? "Saving"
-                  : phase === "starting"
-                    ? "Getting ready"
+          <span className="bg-card inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold">
+            {phase === "saving" || phase === "starting" ? (
+              <CircleNotchIcon className="text-primary size-3 animate-spin" aria-hidden="true" />
+            ) : (
+              <span
+                aria-hidden="true"
+                className={`size-2 rounded-full transition-colors ${
+                  phase === "recording"
+                    ? "bg-destructive animate-pulse-ring"
+                    : phase === "stopped"
+                      ? "bg-primary"
+                      : "bg-muted-foreground/40"
+                }`}
+              />
+            )}
+            {phase === "recording"
+              ? "Recording"
+              : phase === "saving"
+                ? "Saving"
+                : phase === "starting"
+                  ? "Getting ready"
+                  : phase === "stopped"
+                    ? "Stopped"
                     : "Standing by"}
-            </span>
-          </div>
+          </span>
           <p
-            className={`mt-5 font-mono text-5xl tracking-tight tabular-nums transition-colors duration-500 sm:text-6xl ${
+            className={`ease-fluid mt-6 font-mono text-5xl tracking-tight tabular-nums transition-colors duration-700 sm:text-6xl ${
               phase === "recording" || phase === "saving" || phase === "stopped"
                 ? "text-foreground"
                 : "text-muted-foreground/45"
@@ -560,27 +580,27 @@ export function MeetingRecorder({
             {String(Math.floor(elapsed / 60) % 60).padStart(2, "0")}:
             {String(elapsed % 60).padStart(2, "0")}
           </p>
-          <p className="text-muted-foreground mx-auto mt-4 max-w-xs text-sm" aria-live="polite">
+          <p className="text-muted-foreground mx-auto mt-4 max-w-xs text-sm text-pretty" aria-live="polite">
             {phase === "recording"
               ? tabAttached
-                ? "Microphone + meeting tab · keep this tab open"
+                ? "Microphone and meeting tab · keep this tab open"
                 : "Microphone · keep this tab open"
               : phase === "saving"
                 ? "Saving your recording…"
-                : "Up to 4 hours · English & Spanish detected automatically"}
+                : "Up to 4 hours · English and Spanish detected automatically"}
           </p>
         </div>
 
-        {/* Step 4 — the commitment. */}
-        <div className="mt-6">
+        <div className="px-3 pt-6 pb-3">
+          {/* The commitment. */}
           {phase === "idle" || phase === "starting" ? (
             <Button
               size="lg"
-              className="h-14 w-full text-base"
+              className={MAIN_BUTTON}
               disabled={phase === "starting" || fileBusy}
               onClick={() => void start()}
             >
-              <Mic />
+              <MicrophoneIcon weight="fill" />
               {phase === "starting" ? "Starting microphone…" : "Record meeting"}
             </Button>
           ) : null}
@@ -588,206 +608,221 @@ export function MeetingRecorder({
             <Button
               size="lg"
               variant="destructive"
-              className="h-14 w-full text-base"
+              className={MAIN_BUTTON}
               onClick={() => {
                 setPhase("saving");
                 recorder.current?.stop();
               }}
             >
-              <Square />
-              Stop & save meeting
+              <StopIcon weight="fill" />
+              Stop and save meeting
             </Button>
           ) : null}
           {phase === "stopped" && emergency.length === 0 ? (
             <Button
               size="lg"
               variant="secondary"
-              className="w-full"
+              className={MAIN_BUTTON}
               onClick={() => active.current && void finish(active.current)}
             >
-              <UploadCloud />
+              <ArrowClockwiseIcon />
               Retry saving
             </Button>
           ) : null}
-        </div>
 
-        <details className="mt-6 px-1 py-3">
-          <summary className="focus-visible:ring-ring cursor-pointer rounded text-sm font-medium focus-visible:ring-2">
-            Meeting options
-          </summary>
-          <div className="mt-4 space-y-4">
-            <div className="space-y-2">
-              <label htmlFor="meeting-title" className="text-sm font-medium">
-                Meeting name (optional)
-              </label>
-              <Input
-                id="meeting-title"
-                value={title}
-                onChange={(event) => {
-                  setTitle(event.target.value);
-                  titleLatest.current = event.target.value;
-                }}
-                placeholder="Breeze will name it for you"
-                maxLength={160}
-                disabled={phase === "saving" || phase === "stopped" || fileBusy}
-                className="h-11 rounded-lg"
+          <details className="group/options mt-4">
+            <summary className={SUMMARY}>
+              <SlidersHorizontalIcon className="text-muted-foreground size-4" aria-hidden="true" />
+              Meeting options
+              <CaretDownIcon
+                className="text-muted-foreground ease-fluid ml-auto size-4 transition-transform duration-300 group-open/options:rotate-180"
+                aria-hidden="true"
               />
-            </div>
-            {tabCaptureSupported ? (
-              <div>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  disabled={phase !== "recording" || addingTab}
-                  onClick={() => {
-                    if (tabAttached) {
-                      detachTab.current?.();
-                      detachTab.current = null;
-                      setTabAttached(false);
-                    } else void addTab();
+            </summary>
+            <div className="flex flex-col gap-4 px-3 pt-4 pb-2">
+              <div className="flex flex-col gap-2">
+                <label htmlFor="meeting-title" className="text-sm font-semibold">
+                  Meeting name <span className="text-muted-foreground font-normal">(optional)</span>
+                </label>
+                <Input
+                  id="meeting-title"
+                  value={title}
+                  onChange={(event) => {
+                    setTitle(event.target.value);
+                    titleLatest.current = event.target.value;
                   }}
-                >
-                  <Monitor />
-                  {addingTab
-                    ? "Choosing tab…"
-                    : tabAttached
-                      ? "Remove meeting tab"
-                      : "Add meeting tab audio"}
-                </Button>
-                <p className="text-muted-foreground mt-2 text-xs leading-relaxed">
-                  {phase === "recording"
-                    ? "Choose the meeting tab and enable Share tab audio. Use headphones to avoid capturing voices twice."
-                    : "Start recording, then add a meeting tab here anytime."}
-                </p>
+                  placeholder="Breeze will name it for you"
+                  maxLength={160}
+                  disabled={phase === "saving" || phase === "stopped" || fileBusy}
+                  className="h-12 rounded-lg"
+                />
               </div>
-            ) : null}
-          </div>
-        </details>
-
-        {error ? (
-          <p
-            role="alert"
-            className="text-destructive border-destructive/30 bg-destructive/5 mt-4 rounded-xl border px-4 py-3 text-sm leading-relaxed"
-          >
-            {error}
-          </p>
-        ) : null}
-        {uploadStatus ? (
-          <p role="status" className="text-muted-foreground mt-4 text-center text-sm">
-            {uploadStatus}
-          </p>
-        ) : null}
-
-        {emergency.length > 0 ? (
-          <div className="border-destructive/30 bg-destructive/5 mt-4 space-y-3 rounded-xl border p-4">
-            <p className="text-sm font-medium">Keep a copy before you leave</p>
-            <div className="flex flex-wrap gap-2">
-              {emergency.map((item) => (
-                <Button
-                  key={item.index}
-                  variant="outline"
-                  size="sm"
-                  onClick={() => download(item.blob, item.index)}
-                >
-                  <Download />
-                  Part {item.index + 1}
-                </Button>
-              ))}
+              {tabCaptureSupported ? (
+                <div>
+                  <Button
+                    variant="outline"
+                    className={`${SMALL_BUTTON} w-full`}
+                    disabled={phase !== "recording" || addingTab}
+                    onClick={() => {
+                      if (tabAttached) {
+                        detachTab.current?.();
+                        detachTab.current = null;
+                        setTabAttached(false);
+                      } else void addTab();
+                    }}
+                  >
+                    <MonitorIcon />
+                    {addingTab
+                      ? "Choosing tab…"
+                      : tabAttached
+                        ? "Remove meeting tab"
+                        : "Add meeting tab audio"}
+                  </Button>
+                  <p className="text-muted-foreground mt-2 text-xs text-pretty">
+                    {phase === "recording"
+                      ? "Choose the meeting tab and enable Share tab audio. Use headphones to avoid capturing voices twice."
+                      : "Start recording, then add a meeting tab here anytime."}
+                  </p>
+                </div>
+              ) : null}
             </div>
-          </div>
-        ) : null}
+          </details>
 
-        <div className="rule-fade mt-7 h-px" />
-        <div className="mt-5 flex items-start gap-3">
-          <ShieldCheck className="text-muted-foreground mt-0.5 size-4 shrink-0" />
-          <p className="text-muted-foreground text-xs leading-relaxed">
-            Let everyone know you’re recording. Keep this tab open until you stop and save.
-          </p>
+          {error ? (
+            <div role="alert" className={ALERT}>
+              <WarningIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+              <span className="min-w-0 flex-1">{error}</span>
+            </div>
+          ) : null}
+          {uploadStatus ? (
+            <p role="status" className="text-muted-foreground mt-4 text-center text-sm">
+              {uploadStatus}
+            </p>
+          ) : null}
+
+          {emergency.length > 0 ? (
+            <div className="border-destructive/25 bg-destructive/5 mt-4 flex flex-col gap-3 rounded-xl border p-4">
+              <p className="flex items-center gap-2 text-sm font-semibold">
+                <DownloadSimpleIcon className="text-destructive size-4" aria-hidden="true" />
+                Keep a copy before you leave
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {emergency.map((item) => (
+                  <Button
+                    key={item.index}
+                    variant="outline"
+                    size="sm"
+                    className={SMALL_BUTTON}
+                    onClick={() => download(item.blob, item.index)}
+                  >
+                    <DownloadSimpleIcon />
+                    Part {item.index + 1}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          <div className="bg-border mt-6 h-px" />
+          <div className="mt-4 flex items-start gap-3">
+            <ShieldCheckIcon className="text-muted-foreground mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            <p className="text-muted-foreground text-xs text-pretty">
+              Let everyone know you’re recording. Keep this tab open until you stop and save.
+            </p>
+          </div>
         </div>
       </div>
 
-      <details className="bg-card rounded-xl border p-5">
-        <summary className="focus-visible:ring-ring cursor-pointer rounded text-sm font-medium focus-visible:ring-2">
+      <details className="group/upload bg-card animate-landing-rise rounded-3xl border p-3 shadow-xs [animation-delay:160ms]">
+        <summary className={SUMMARY}>
+          <UploadSimpleIcon className="text-muted-foreground size-4" aria-hidden="true" />
           Upload an existing recording
-        </summary>
-        <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
-          Audio or video, up to 4 hours. Breeze will name the meeting automatically.
-        </p>
-        <label
-          onDragOver={(event) => {
-            event.preventDefault();
-            if (!busy) setDragging(true);
-          }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={(event) => {
-            event.preventDefault();
-            setDragging(false);
-            const file = event.dataTransfer.files[0];
-            if (file && !busy) void uploadFile(file);
-          }}
-          className={`focus-within:ring-ring/50 mt-5 flex cursor-pointer flex-col items-center gap-3 rounded-2xl border border-dashed px-6 py-10 text-center transition-colors focus-within:ring-[3px] has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60 ${
-            dragging ? "border-primary bg-primary/5" : "border-border/70 hover:bg-accent/40"
-          }`}
-        >
-          <input
-            type="file"
-            accept="audio/*,video/*"
-            disabled={busy}
-            className="sr-only"
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              event.target.value = "";
-              if (file) void uploadFile(file);
-            }}
+          <CaretDownIcon
+            className="text-muted-foreground ease-fluid ml-auto size-4 transition-transform duration-300 group-open/upload:rotate-180"
+            aria-hidden="true"
           />
-          <span className="bg-muted flex size-14 items-center justify-center rounded-full">
-            <UploadCloud className="text-muted-foreground size-6" />
-          </span>
-          <span className="text-sm font-medium">
-            {filePhase === "decoding"
-              ? "Decoding…"
-              : filePhase === "uploading"
-                ? `Uploading part ${Math.min(fileProgress.done + 1, fileProgress.total)} of ${fileProgress.total}`
-                : "Choose a file or drop it here"}
-          </span>
-          <span className="text-muted-foreground text-xs">MP3, M4A, WAV, OGG, WebM, MP4, MOV</span>
-        </label>
-
-        {filePhase === "uploading" ? (
-          <div
-            role="progressbar"
-            aria-label="Upload progress"
-            aria-valuemin={0}
-            aria-valuemax={fileProgress.total}
-            aria-valuenow={fileProgress.done}
-            className="bg-muted mt-4 h-1.5 overflow-hidden rounded-full"
+        </summary>
+        <div className="px-3 pt-2 pb-3">
+          <p className="text-muted-foreground text-sm text-pretty">
+            Audio or video, up to 4 hours. Breeze will name the meeting automatically.
+          </p>
+          <label
+            onDragOver={(event) => {
+              event.preventDefault();
+              if (!busy) setDragging(true);
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(event) => {
+              event.preventDefault();
+              setDragging(false);
+              const file = event.dataTransfer.files[0];
+              if (file && !busy) void uploadFile(file);
+            }}
+            className={`ease-fluid focus-within:ring-ring/50 mt-4 flex cursor-pointer flex-col items-center gap-3 rounded-xl border border-dashed px-6 py-10 text-center transition-colors duration-300 focus-within:ring-[3px] has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60 ${
+              dragging ? "border-primary bg-primary/5" : "bg-band hover:border-foreground/30"
+            }`}
           >
-            <div
-              className="bg-primary h-full rounded-full transition-[width] duration-300"
-              style={{ width: `${(fileProgress.done / fileProgress.total) * 100}%` }}
+            <input
+              type="file"
+              accept="audio/*,video/*"
+              disabled={busy}
+              className="sr-only"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (file) void uploadFile(file);
+              }}
             />
-          </div>
-        ) : null}
+            <span className="bg-primary/10 text-primary flex size-12 items-center justify-center rounded-full">
+              {fileBusy ? (
+                <CircleNotchIcon className="size-6 animate-spin" aria-hidden="true" />
+              ) : (
+                <UploadSimpleIcon className="size-6" aria-hidden="true" />
+              )}
+            </span>
+            <span className="text-sm font-semibold">
+              {filePhase === "decoding"
+                ? "Decoding…"
+                : filePhase === "uploading"
+                  ? `Uploading part ${Math.min(fileProgress.done + 1, fileProgress.total)} of ${fileProgress.total}`
+                  : "Choose a file or drop it here"}
+            </span>
+            <span className="text-muted-foreground text-xs">MP3, M4A, WAV, OGG, WebM, MP4, MOV</span>
+          </label>
 
-        {fileError ? (
-          <div
-            role="alert"
-            className="text-destructive border-destructive/25 bg-destructive/5 mt-4 flex items-start gap-2.5 rounded-xl border px-4 py-3 text-sm leading-relaxed"
-          >
-            <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-            <span className="min-w-0 flex-1">{fileError}</span>
-          </div>
-        ) : null}
-        {fileError && fileJob && !busy ? (
-          <Button
-            variant="secondary"
-            className="mt-4 w-full"
-            onClick={() => void sendFile(fileJob)}
-          >
-            <RotateCcw />
-            Retry upload
-          </Button>
-        ) : null}
+          {filePhase === "uploading" ? (
+            <div
+              role="progressbar"
+              aria-label="Upload progress"
+              aria-valuemin={0}
+              aria-valuemax={fileProgress.total}
+              aria-valuenow={fileProgress.done}
+              className="bg-muted mt-4 h-1.5 overflow-hidden rounded-full"
+            >
+              <div
+                className="bg-primary ease-fluid h-full rounded-full transition-[width] duration-700"
+                style={{ width: `${(fileProgress.done / fileProgress.total) * 100}%` }}
+              />
+            </div>
+          ) : null}
+
+          {fileError ? (
+            <div role="alert" className={ALERT}>
+              <WarningIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+              <span className="min-w-0 flex-1">{fileError}</span>
+            </div>
+          ) : null}
+          {fileError && fileJob && !busy ? (
+            <Button
+              variant="secondary"
+              className={`${SMALL_BUTTON} mt-4 w-full`}
+              onClick={() => void sendFile(fileJob)}
+            >
+              <ArrowCounterClockwiseIcon />
+              Retry upload
+            </Button>
+          ) : null}
+        </div>
       </details>
     </div>
   );

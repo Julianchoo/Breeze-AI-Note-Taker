@@ -3,7 +3,8 @@
 import { useEffect, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeftIcon } from "@phosphor-icons/react/dist/ssr";
+import { Skeleton } from "@/components/ui/skeleton";
 import { hasAndroidRecorder } from "@/lib/native-android-recorder";
 import { MeetingRecorder } from "./meeting-recorder";
 import { NativeMeetingRecorder } from "./native-meeting-recorder";
@@ -23,31 +24,37 @@ export function NewMeeting({ userId, autoStart = false }: { userId: string; auto
   }, [autoStart]);
   const Recorder = native ? NativeMeetingRecorder : MeetingRecorder;
   return (
-    <div className="glow-bg">
-      <div className="mx-auto max-w-2xl px-4 py-8 sm:py-14">
+    <div className="landing">
+      <div className="mx-auto max-w-2xl px-4 pt-8 pb-16 sm:pt-12 sm:pb-24">
         <Link
           href="/meetings/history"
-          className="text-muted-foreground hover:text-foreground hover:bg-accent -ml-2 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm transition-colors"
+          className="text-muted-foreground hover:text-foreground hover:bg-accent ease-fluid focus-visible:ring-ring/50 -ml-3 inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold transition-[background-color,color,scale] duration-300 focus-visible:ring-[3px] focus-visible:outline-none active:scale-[0.98]"
         >
-          <ArrowLeft className="size-4" />
+          <ArrowLeftIcon className="size-4" aria-hidden="true" />
           My meetings
         </Link>
-        <header className="mt-6 mb-6 sm:mt-8 sm:mb-8">
-          <p className="eyebrow">New recording</p>
-          <h1 className="font-display mt-2 text-4xl sm:text-5xl">Your meeting</h1>
-          <p className="text-muted-foreground mt-3 text-base leading-relaxed">
+        <header className="animate-landing-rise mt-6 mb-8 flex flex-col gap-3 sm:mt-8">
+          <p className="text-primary text-sm font-semibold">New recording</p>
+          <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">Your meeting</h1>
+          <p className="text-muted-foreground text-base text-pretty">
             {native
               ? "Record now. Breeze takes care of the notes."
-              : "Record now. Add meeting-tab audio whenever you want."}
+              : "Record now. Add meeting tab audio whenever you want."}
           </p>
         </header>
         {hydrated ? (
           <Recorder userId={userId} autoStart={autoStart} onFinished={(id) => router.push(`/meetings/${id}`)} />
         ) : (
-          <div role="status" aria-busy="true" className="bg-card rounded-2xl border p-8 text-center text-sm text-muted-foreground">Preparing your microphone…</div>
+          <div role="status" aria-busy="true" className="bg-card rounded-3xl border p-3 shadow-xs">
+            <div className="bg-band flex flex-col items-center gap-4 rounded-xl px-4 py-10">
+              <Skeleton className="h-6 w-28 rounded-full" />
+              <Skeleton className="h-12 w-56" />
+              <span className="text-muted-foreground text-sm">Preparing your microphone…</span>
+            </div>
+            <Skeleton className="mt-6 h-14 w-full rounded-full" />
+          </div>
         )}
       </div>
     </div>
   );
 }
-

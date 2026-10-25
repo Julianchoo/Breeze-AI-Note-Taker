@@ -9,7 +9,7 @@ This document defines the visual design system for the project — a warm editor
 - **Framework:** Next.js (App Router) + React + TypeScript
 - **Styling:** Tailwind CSS v4 (CSS-first config via `@theme inline` in `globals.css` — no `tailwind.config.ts`)
 - **Components:** shadcn/ui (new-york style, neutral base structure, tokens overridden to the warm palette)
-- **Icons:** Lucide React (app wide); Phosphor (`@phosphor-icons/react`, pinned `2.1.10`) on the home page only, see "Home page (landing system)"
+- **Icons:** Lucide React (app wide); Phosphor (`@phosphor-icons/react`, pinned `2.1.10`) on the landing screens only (home, record screen, meetings list), see "Landing system (home, record and meetings list)"
 - **Fonts:** Geist (sans), Geist Mono (mono), Instrument Serif (display) — all via `next/font/google`
 - **Dark mode:** next-themes (class-based, system default, 3-way toggle: Light / Dark / System)
 - **Utilities:** `cn()` from `@/lib/utils` (clsx + tailwind-merge)
@@ -127,7 +127,7 @@ The Google "G" mark (`GoogleMark` in `google-sign-in-button.tsx`) uses Google's 
 | Class | What it does | When to use |
 |---|---|---|
 | `.font-display` | Applies Instrument Serif, weight 400, `letter-spacing: -0.015em`, Georgia fallback | Large headings, markdown h1/h2 — see Typography |
-| `.eyebrow` | Small-caps label: `text-muted-foreground text-[0.6875rem] font-medium tracking-[0.18em] uppercase` | Sits above a page or section heading ("Your workspace", "Sign in", "New recording") |
+| `.eyebrow` | Small-caps label: `text-muted-foreground text-[0.6875rem] font-medium tracking-[0.18em] uppercase` | Sits above a page or section heading on editorial pages ("Sign in") |
 | `.glow-bg` | Two soft radial gradients (top-center in `primary`, upper-right in `chart-2`) bleeding into the page background | Wraps full-bleed page sections: homepage, meeting list, meeting detail, 404, error |
 | `.auth-bg` | A single soft radial gradient in `primary`, centered at the top | Wraps the `(auth)` layout only |
 | `.rule-fade` | `linear-gradient` hairline that fades to transparent at both ends (`to right, transparent, border 15%, border 85%, transparent`) | Divider between a header and its content, or between sections — used instead of a plain `<hr>`/`Separator` on editorial pages |
@@ -201,10 +201,10 @@ Full-bleed editorial pages are **not** wrapped in the plain `container mx-auto p
 | Class | Usage |
 |---|---|
 | `max-w-md` | Auth card wrapper, 404/error content |
-| `max-w-2xl` | New-meeting page |
+| `max-w-2xl` | New meeting page (landing system) |
 | `max-w-3xl` | Homepage hero copy block |
 | `max-w-4xl` | Meeting detail page |
-| `max-w-5xl` | Meeting list page |
+| `max-w-5xl` | Meeting list page (landing system) |
 | `max-w-6xl` | Homepage, site header, site footer |
 
 ### Page Header Pattern
@@ -218,7 +218,9 @@ Full-bleed editorial pages are **not** wrapped in the plain `container mx-auto p
 <div className="rule-fade mt-10 sm:mt-14 h-px" />
 ```
 
-### List Row Pattern (meeting list)
+### List Row Pattern (editorial)
+
+The meeting list itself now uses landing cards (see "Landing system", signed in screens); keep this pattern for editorial lists only.
 
 ```
 <ul className="border-border/70 divide-y border-y">
@@ -395,13 +397,20 @@ Custom icons per state (`CircleCheckIcon`, `InfoIcon`, `TriangleAlertIcon`, `Oct
 
 ---
 
-## Home page (landing system)
+## Landing system (home, record and meetings list)
 
-The public home (`src/app/page.tsx`, `src/components/home/*`) deliberately does **not** follow the warm editorial system above. It follows the vendored landing skill (`.claude/skills/landing-page-design/SKILL.md`, Part B). Everything else (signed in app, auth pages, share pages, Android page, footer, and the standard `SiteHeader` on every route except `/`) still follows the warm editorial system. The home replaces `SiteHeader` with its own island nav (below). Do not copy landing patterns into the app, and do not use editorial utilities (`font-display`, `.eyebrow`, `.glow-bg`, `.rule-fade`, `animate-fade-up`) on the home.
+These screens deliberately do **not** follow the warm editorial system above. They follow the vendored landing skill (`.claude/skills/landing-page-design/SKILL.md`, Part B):
+
+- **Home:** `src/app/page.tsx`, `src/components/home/*` (public, with its own island nav).
+- **Record screen:** `/meetings` (`src/app/meetings/page.tsx`) and `/meetings/new` (`new-meeting.tsx`, `meeting-recorder.tsx`, `native-meeting-recorder.tsx`), in every state: idle, starting, recording, saving, stopped, errors, recovery, upload, and the Android native recorder.
+- **Meetings list:** `/meetings/history` (`meeting-list.tsx`): search, list, empty, loading and error states.
+- **Meeting tabs:** `meeting-navigation.tsx` uses the landing style on those three routes and keeps the editorial style on meeting detail.
+
+Everything else (meeting detail, share pages, admin, auth pages, Android page, footer, and the standard `SiteHeader`) still follows the warm editorial system. The record screen and meetings list keep the shared `SiteHeader`; only the home replaces it with the island nav (below). Do not copy landing patterns into other app screens, and do not use editorial utilities (`font-display`, `.eyebrow`, `.glow-bg`, `.rule-fade`, `animate-fade-up`) on landing screens.
 
 ### Scope and tokens
 
-Everything sits inside a `.landing` wrapper defined in `globals.css` (outside `@layer`, after the utilities). It re-points semantic tokens, so primitives rendered on the home resolve to landing surfaces:
+Every landing screen sits inside a `.landing` wrapper defined in `globals.css` (outside `@layer`, after the utilities). It re-points semantic tokens, so primitives rendered there resolve to landing surfaces:
 
 | Token | Light | Dark |
 |---|---|---|
@@ -413,8 +422,8 @@ Everything sits inside a `.landing` wrapper defined in `globals.css` (outside `@
 | `--landing-band` (`bg-band` utility) | `oklch(0.948 0.011 78)` | `#181818` |
 | `--radius` | `0.5rem` | `0.5rem` |
 
-- **Token scope:** the same tokens are also set on `.landing-island` (the home header, which renders outside `.landing` in the root layout); only `.landing` paints a background.
-- **Dark backgrounds** may only use `#000000`, `#181818`, `#1F1F1F`, `#272727`, `#313131`, `#131209`. `.dark body:has(.landing)` paints the canvas `#131209` so the shared header and footer sit on the same surface.
+- **Token scope:** the same tokens are also set on `.landing-island` for landing UI that renders outside `.landing`: the home header (root layout) and the meeting tabs (meetings layout). Only `.landing` paints a background.
+- **Dark backgrounds** may only use `#000000`, `#181818`, `#1F1F1F`, `#272727`, `#313131`, `#131209`. `.dark body:has(.landing)` paints the canvas `#131209` so the shared header and footer sit on the same surface. On landing screens `.site-header` also re-points `--background` to `#131209` in dark mode so its translucent glass does not show a lighter band, and inside the APK the reserved status bar strip (`.app-frame[data-native-android]::before`) does the same.
 - **Primary** stays the terracotta `primary` token: CTA, labels, icon chips, small highlights.
 - **Radius:** with `--radius: 0.5rem` the project scale equals Tailwind's defaults (`sm` 4px, `md` 6px, `lg` 8px, `xl` 12px); `rounded-2xl` would be 18px, so the home uses `rounded-3xl` (24px) for large cards and `rounded-4xl` (32px) for the two framed moments (the product demo bezel and the final CTA panel). Nested shapes follow `inner = outer − gap` when the gap is under 32px and the result is above 2px.
 - **Flat surfaces:** no background gradients, no `.glow-bg`, no single sided borders (cards are fully bordered or not at all; dividers inside the demo are `h-px bg-border` rules or surface changes).
@@ -436,7 +445,7 @@ Padding, margin and gap only from `0, 0.5, 1, 2, 3, 4, 6, 8, 10, 12, 16, 20, 24`
 
 ### Icons
 
-Phosphor, imported from `@phosphor-icons/react/dist/ssr` using the `…Icon` export names (works in server and client components). Home only; Lucide stays everywhere else.
+Phosphor, imported from `@phosphor-icons/react/dist/ssr` using the `…Icon` export names (works in server and client components); the `Icon` type comes from `@phosphor-icons/react` as a type only import. Landing screens only; Lucide stays everywhere else.
 
 ### Motion
 
@@ -487,3 +496,19 @@ Vignettes use `bg-card rounded-lg border shadow-xs` surfaces, Tailwind type step
 
 Island nav, hero (label, gradient `h1`, subheading, CTA, one factual proof line, `ProductDemo`), problem to solution, five benefits (bento with vignettes), three steps (`#how-it-works`), tagline reveal, FAQ (`#faq`, native `<details>`), risk reversal with the final CTA. The FAQ array in `src/components/home/faq.tsx` feeds both the visible list and the `FAQPage` JSON-LD. The page sets its own title and description.
 
+
+### Signed in landing screens (record and meetings list)
+
+The same tokens, type, spacing, icon and motion rules as the home, applied to working screens. No hero gradient, no `Reveal`/`TaglineReveal` (content is above the fold or dynamic); entrance is `animate-landing-rise` with `[animation-delay:80ms|120ms|160ms]` staggers.
+
+- **Wrapper:** each page renders `<div className="landing">` itself (not the meetings layout), so meeting detail stays editorial. Page widths: `/meetings` full width centered, `/meetings/new` `max-w-2xl`, `/meetings/history` `max-w-5xl`.
+- **Page header:** label `text-primary text-sm font-semibold`, `h1` `text-4xl sm:text-5xl font-semibold tracking-tight text-balance`, subcopy `text-muted-foreground text-base text-pretty`. No `.rule-fade` under it.
+- **Meeting tabs:** a `bg-card border-foreground/10 rounded-full border p-1 shadow-xs` track; each tab `rounded-full px-4 py-2 text-sm font-semibold` with a Phosphor icon. The current tab inverts (`bg-foreground text-background`, filled icon, `aria-current="page"`); the other is muted with a `hover:bg-accent` shift.
+- **Record button (`/meetings`):** the hero and the only primary action. A `bg-primary` circle (`w-52 sm:w-60`, filled `MicrophoneIcon` plus "Record" in `text-lg font-semibold`) inside a translucent `bg-card/60 border-foreground/10 rounded-full border p-3` bezel with a foreground tinted shadow, echoing the home's demo bezel. Hover `scale-[1.02]` and a deeper primary shadow, active `scale-[0.98]`, `focus-visible:ring-4`, all `ease-fluid duration-300`. The page `h1` stays `sr-only`. Below it: one calm line of copy and "Upload a recording" as a bordered `bg-card` pill (secondary).
+- **Recorder card:** `bg-card rounded-3xl border p-3 shadow-xs` around a `rounded-xl` clock well (24px outer, 12px gap: 12px inner). The well is `bg-band` at rest and tints `bg-destructive/8` while recording or `bg-primary/8` while saving. A bordered status pill names the state in text (Standing by, Getting ready, Recording, Saving, Stopped) with a dot (`animate-pulse-ring` while recording) or a spinning `CircleNotchIcon`; status is never color only. The timer is `font-mono text-5xl sm:text-6xl tabular-nums`. Main buttons are `h-14 w-full text-base font-semibold` pills with `hover:-translate-y-0.5`.
+- **Disclosures:** `<details>` stay native; the `summary` is a `rounded-xl px-3 py-3 text-sm font-semibold` row with a leading icon, `hover:bg-accent`, a focus ring and a `CaretDownIcon` that rotates when open (`group-open/<name>:rotate-180`). Upload and "Saved on this phone" are their own `rounded-3xl p-3` cards; list items inside them sit on `bg-band rounded-xl` wells.
+- **Alerts:** `rounded-xl border border-destructive/25 bg-destructive/5 text-destructive` with a `WarningIcon` (or `PhoneSlashIcon` for the call notice) and text.
+- **Meeting list rows:** each meeting is a fully bordered card, never a divided list: `bg-card rounded-3xl border p-3 shadow-xs`, a `size-12 rounded-xl bg-band` icon well from `sm` (hidden on phones to give titles room), title `text-base font-semibold truncate`, then date and duration in `font-mono text-xs tabular-nums` with the status badge beside them. Badges pair an icon with text: `CheckCircleIcon` Ready, `SparkleIcon` Ready to process, spinning `CircleNotchIcon` Preparing, pulsing dot Recording, `WarningIcon` Needs attention. Hover lifts the card (`-translate-y-0.5`, `hover:border-foreground/20`, a soft foreground tinted shadow, `ease-fluid duration-500`) and nudges the `ArrowUpRightIcon`.
+- **Search:** `h-12 rounded-full bg-card` input with a `MagnifyingGlassIcon`; counts sit beside it in `font-mono text-xs`.
+- **Loading:** skeleton cards with the same shape as a row (well, two text bars, a badge pill), `role="status" aria-busy="true"`. The recorder shows a skeleton of the clock card while it detects the Android bridge.
+- **Empty:** a dashed `bg-card rounded-3xl border border-dashed` panel, `size-12 rounded-full bg-primary/10 text-primary` icon chip, `text-2xl sm:text-3xl font-semibold` heading and a "Record a meeting" primary pill.

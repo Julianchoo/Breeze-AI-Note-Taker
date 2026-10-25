@@ -14,7 +14,7 @@ import { useTheme } from "next-themes";
 import { hasAndroidRecorder } from "@/lib/native-android-recorder";
 import { cn } from "@/lib/utils";
 
-/* Home only header: the landing system's floating "fluid island" (skill B7, DESIGN.md "Home page").
+/* Home only header: the landing system's floating "fluid island" (skill B7, DESIGN.md "Landing system").
    A glass pill detached from the top that stays put while the page scrolls, plus a menu button whose
    two lines morph into an X and open a full screen glass overlay with staggered links.
    Every other route keeps SiteHeader; HeaderSwitch chooses between them by pathname. */

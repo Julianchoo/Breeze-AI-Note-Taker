@@ -308,10 +308,11 @@
   }
 }
 
-/* Home page landing system. A deliberate, home only exception to the warm editorial system
-   (see DESIGN.md, "Home page"). Flat surfaces, no gradients; dark surfaces use only the approved
-   hex values. Semantic tokens are re-pointed inside `.landing` so primitives rendered on the home
-   (and the product demo) resolve to these surfaces without touching the rest of the app. */
+/* Landing system: the home, the record screen and the meetings list. A deliberate exception to the
+   warm editorial system (see DESIGN.md, "Landing system"). Flat surfaces, no gradients; dark surfaces
+   use only the approved hex values. Semantic tokens are re-pointed inside `.landing` (and
+   `.landing-island`, for landing UI rendered outside it) so primitives resolve to these surfaces
+   without touching the rest of the app. */
 .landing,
 .landing-island {
   /* With this base, the project's radius scale matches Tailwind's defaults
@@ -341,9 +342,17 @@
   --accent: #313131;
 }
 
-/* Keeps the canvas behind the shared header and footer flush with the home surface in dark mode. */
+/* Keeps the canvas behind the shared header and footer flush with the landing surface in dark mode
+   (the home, the record screen and the meetings list). */
 .dark body:has(.landing) {
   background-color: #131209;
+}
+
+/* The record screen and meetings list keep the shared SiteHeader. Its translucent glass mixes
+   var(--background) with the canvas, so on landing screens it reads the landing canvas instead of the
+   editorial one; otherwise a lighter band would sit above the page in dark mode. */
+.dark body:has(.landing) .site-header {
+  --background: #131209;
 }
 
 
@@ -368,6 +377,11 @@
   background: var(--background);
   pointer-events: none;
   z-index: 50;
+}
+
+/* Inside the APK, the reserved status bar strip matches the landing canvas on landing screens. */
+.dark .app-frame[data-native-android="true"]:has(.landing)::before {
+  background: #131209;
 }
 
 .app-frame[data-native-android="true"] .site-header,
