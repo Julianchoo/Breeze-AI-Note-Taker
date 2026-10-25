@@ -2,30 +2,28 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
-  AudioLines,
-  Check,
-  Copy,
-  FileDown,
-  FileText,
-  Globe,
-  Loader2,
-  Lock,
-  Mail,
-  Mic,
-  Monitor,
-  Pause,
-  Play,
-  Sparkles,
-  Square,
-  Wind,
-  X,
-} from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+  CheckIcon,
+  CircleNotchIcon,
+  CopyIcon,
+  EnvelopeSimpleIcon,
+  FileArrowDownIcon,
+  FileTextIcon,
+  GlobeIcon,
+  LockSimpleIcon,
+  MicrophoneIcon,
+  MonitorIcon,
+  PauseIcon,
+  PlayIcon,
+  SparkleIcon,
+  StopIcon,
+  WaveformIcon,
+} from "@phosphor-icons/react/dist/ssr";
 import { cn } from "@/lib/utils";
 
 /* A scripted, silent product tour. One clock (`elapsed`, in ms) drives every reveal, so pausing the clock
-   freezes the whole story. The fake UI is decorative: buttons are styled spans, never focusable. */
+   freezes the whole story. The fake UI is decorative: buttons are styled spans, never focusable.
+   Styled with the home page landing system (DESIGN.md "Home page"): Geist only, Tailwind type and
+   spacing steps, Phosphor icons, flat surfaces. */
 
 const SCENES = [
   { label: "Record", ms: 4000, path: "meetings/new" },
@@ -41,16 +39,23 @@ const OUTRO_MS = 1000;
 const STILL_FRAME_MS = SCENES[0].ms + SCENES[1].ms + SCENES[2].ms - TICK_MS;
 
 const MEETING = "Q3 launch planning";
-/* The stopwatch fast-forwards to 00:42:17 over the record scene. */
+/* The stopwatch fast forwards to 00:42:17 over the record scene. */
 const RECORDED_SECONDS = 42 * 60 + 17;
 const CLOCK_RAMP_MS = 3400;
 
-const CARD_SHADOW = "shadow-[0_1px_2px_0_color-mix(in_oklch,var(--foreground)_6%,transparent)]";
-const PRESSED = "ring-ring/50 scale-[0.98] ring-[3px]";
+const CARD = "bg-card rounded-xl border shadow-xs";
+const LABEL = "text-muted-foreground text-xs font-medium";
+const PILL = "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium";
+/* Fake buttons mirror the landing button: 8px by 12px padding, semibold. */
+const FAKE_BUTTON =
+  "inline-flex shrink-0 items-center justify-center gap-2 rounded-full px-3 py-2 text-sm font-semibold whitespace-nowrap transition-[scale,box-shadow,color,background-color] duration-300 ease-fluid";
+const FAKE_PRIMARY = "bg-primary text-primary-foreground";
+const FAKE_OUTLINE = "bg-background border";
+const PRESSED = "ring-ring/50 scale-[0.98] ring-4";
 
 const SOURCES = [
-  { icon: Mic, label: "Microphone", hint: "Your voice" },
-  { icon: Monitor, label: "Meeting tab", hint: "Google Meet audio" },
+  { icon: MicrophoneIcon, label: "Microphone", hint: "Your voice" },
+  { icon: MonitorIcon, label: "Meeting tab", hint: "Google Meet audio" },
 ] as const;
 
 const SEGMENTS = [
@@ -83,7 +88,7 @@ const SEGMENTS = [
 /* Summary scene: "processing" until PROCESSING_MS, then sections reveal at their `at`. */
 const PROCESSING_MS = 1400;
 const SUMMARY = [
-  { at: 1900, title: "Key ideas", items: ["Engineering is on track", "Support needs a heads-up"] },
+  { at: 1900, title: "Key ideas", items: ["Engineering is on track", "Support needs a heads up"] },
   {
     at: 2600,
     title: "Decisions",
@@ -134,27 +139,27 @@ function clock(seconds: number) {
   return `${pad(Math.floor(seconds / 3600))}:${pad(Math.floor(seconds / 60) % 60)}:${pad(seconds % 60)}`;
 }
 
-/** Fade-and-rise entrance toggled by the clock rather than by mount, so it pauses with it. */
+/** Fade and rise entrance toggled by the clock rather than by mount, so it pauses with it. */
 function reveal(visible: boolean) {
   return cn(
-    "transition-[opacity,translate] duration-500 ease-out",
+    "ease-fluid transition-[opacity,translate] duration-700",
     !visible && "translate-y-2 opacity-0"
   );
 }
 
 function RecordScene({ t }: { t: number }) {
   const progress = Math.min(1, t / CLOCK_RAMP_MS);
-  // Ease out so the fast-forward settles onto the final time instead of stopping dead.
+  // Ease out so the fast forward settles onto the final time instead of stopping dead.
   const seconds = Math.round(RECORDED_SECONDS * (1 - (1 - progress) ** 3));
   return (
-    <div className={cn("bg-card rounded-2xl border p-4 sm:p-6", CARD_SHADOW)}>
-      <p className="eyebrow">New recording</p>
-      <p className="font-display mt-1.5 truncate text-2xl">{MEETING}</p>
-      <div className="mt-4 grid grid-cols-2 gap-2.5">
+    <div className={cn(CARD, "p-4 sm:p-6")}>
+      <p className={LABEL}>New recording</p>
+      <p className="mt-1 truncate text-xl font-semibold">{MEETING}</p>
+      <div className="mt-4 grid grid-cols-2 gap-2">
         {SOURCES.map(({ icon: Icon, label, hint }) => (
           <div
             key={label}
-            className="border-primary bg-primary/5 flex items-center gap-3 rounded-xl border p-3 sm:p-4"
+            className="border-primary bg-primary/5 flex items-center gap-3 rounded-lg border p-3 sm:p-4"
           >
             <Icon className="text-primary size-5 shrink-0" />
             <span className="min-w-0 flex-1 text-sm font-medium">
@@ -164,20 +169,20 @@ function RecordScene({ t }: { t: number }) {
               </span>
             </span>
             <span className="bg-primary text-primary-foreground hidden size-4 shrink-0 items-center justify-center rounded-full sm:flex">
-              <Check className="size-3" />
+              <CheckIcon weight="bold" className="size-3" />
             </span>
           </div>
         ))}
       </div>
-      <div className="border-destructive/30 bg-destructive/5 mt-4 rounded-2xl border px-4 py-4 text-center sm:py-5">
-        <div className="flex items-center justify-center gap-2.5">
-          <span className="bg-destructive animate-pulse-ring size-2.5 rounded-full" />
-          <span className="eyebrow">Recording</span>
+      <div className="border-destructive/30 bg-destructive/5 mt-4 rounded-lg border p-4 text-center sm:py-6">
+        <div className="flex items-center justify-center gap-2">
+          <span className="bg-destructive animate-pulse-ring size-2 rounded-full" />
+          <span className={LABEL}>Recording</span>
         </div>
         <p className="mt-3 font-mono text-4xl tracking-tight tabular-nums sm:text-5xl">
           {clock(seconds)}
         </p>
-        <div className="mt-3 flex h-8 items-center justify-center gap-[3px] overflow-hidden">
+        <div className="mt-3 flex h-8 items-center justify-center gap-0.5 overflow-hidden">
           {BARS.map((bar, index) => (
             <span
               key={index}
@@ -191,9 +196,9 @@ function RecordScene({ t }: { t: number }) {
           ))}
         </div>
       </div>
-      <span className={cn(buttonVariants({ variant: "destructive" }), "mt-4 w-full")}>
-        <Square />
-        Stop &amp; save meeting
+      <span className={cn(FAKE_BUTTON, "bg-destructive mt-4 w-full text-white")}>
+        <StopIcon weight="fill" className="size-4" />
+        Stop and save meeting
       </span>
     </div>
   );
@@ -204,34 +209,32 @@ function TranscriptScene({ t }: { t: number }) {
     <div>
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <div className="flex items-baseline gap-3">
-          <p className="font-display text-2xl">Full transcript</p>
+          <p className="text-xl font-semibold">Full transcript</p>
           <span className="text-muted-foreground font-mono text-xs tabular-nums">
             {SEGMENTS.filter((segment) => t >= segment.at).length} segments
           </span>
         </div>
-        <Badge variant="secondary">
-          <AudioLines />3 speakers
-        </Badge>
+        <span className={cn(PILL, "bg-secondary text-secondary-foreground")}>
+          <WaveformIcon className="size-3" />3 speakers
+        </span>
       </div>
-      <div className="rule-fade my-4 h-px" />
+      <div className="bg-border my-4 h-px" />
       <ol className="flex flex-col gap-1">
         {SEGMENTS.map((segment) => (
           <li
             key={segment.time}
             className={cn(
-              "grid gap-1 py-2 sm:grid-cols-[7.5rem_1fr] sm:gap-5",
+              "grid gap-1 py-2 sm:grid-cols-[8rem_1fr] sm:gap-6",
               reveal(t >= segment.at)
             )}
           >
-            <div className="flex items-baseline gap-2.5 sm:flex-col sm:gap-1">
+            <div className="flex items-baseline gap-2 sm:flex-col sm:gap-1">
               <span className="text-muted-foreground font-mono text-xs tabular-nums">
                 {segment.time}
               </span>
-              <span className="text-foreground/70 text-[0.6875rem] font-medium tracking-[0.12em] uppercase">
-                {segment.speaker}
-              </span>
+              <span className="text-foreground/70 text-xs font-semibold">{segment.speaker}</span>
             </div>
-            <p className="text-sm leading-6 sm:text-[0.9375rem] sm:leading-7">{segment.text}</p>
+            <p className="text-sm sm:text-base">{segment.text}</p>
           </li>
         ))}
       </ol>
@@ -241,16 +244,17 @@ function TranscriptScene({ t }: { t: number }) {
 
 function ProcessingCard({ t }: { t: number }) {
   return (
-    <div className={cn("bg-card rounded-2xl border p-5 sm:p-7", CARD_SHADOW)}>
-      <Badge variant="secondary">
-        <Loader2 className="animate-spin" />
+    <div className={cn(CARD, "p-4 sm:p-6")}>
+      <span className={cn(PILL, "bg-secondary text-secondary-foreground")}>
+        <CircleNotchIcon className="size-3 animate-spin" />
         Preparing your notes
-      </Badge>
-      <p className="font-display mt-4 flex items-center gap-2.5 text-2xl">
+      </span>
+      <p className="mt-4 flex items-center gap-2 text-xl font-semibold">
         <span className="bg-primary/70 size-2 shrink-0 animate-pulse rounded-full" />
         Writing your summary
       </p>
-      <div className="bg-muted mt-5 h-1.5 overflow-hidden rounded-full">
+      <div className="bg-muted mt-6 h-2 overflow-hidden rounded-full">
+        {/* Linear on purpose: the bar tracks the 100ms tick of the scripted clock. */}
         <div
           className="bg-primary h-full origin-left rounded-full transition-transform duration-100 ease-linear"
           style={{ transform: `scaleX(${Math.min(1, t / PROCESSING_MS)})` }}
@@ -264,30 +268,28 @@ function ProcessingCard({ t }: { t: number }) {
 function SummaryScene({ t }: { t: number }) {
   if (t < PROCESSING_MS) return <ProcessingCard t={t} />;
   return (
-    <div className={cn("bg-card animate-fade-in rounded-2xl border p-4 sm:p-7", CARD_SHADOW)}>
+    <div className={cn(CARD, "animate-landing-fade p-4 sm:p-6")}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="eyebrow mb-1.5">The takeaway</p>
-          <p className="font-display text-2xl leading-tight sm:text-3xl">
-            Q3 launch is on for Oct 14
-          </p>
+          <p className={cn(LABEL, "mb-1")}>The takeaway</p>
+          <p className="text-xl font-semibold sm:text-2xl">Q3 launch is on for Oct 14</p>
         </div>
-        <Badge variant="success" className="shrink-0">
-          <Check />
+        <span className={cn(PILL, "border-success/25 bg-success/12 text-success shrink-0")}>
+          <CheckIcon weight="bold" className="size-3" />
           Ready
-        </Badge>
+        </span>
       </div>
-      <div className="rule-fade my-4 h-px sm:my-5" />
-      <div className="grid gap-3.5 md:grid-cols-3 md:gap-6">
+      <div className="bg-border my-4 h-px sm:my-6" />
+      <div className="grid gap-4 md:grid-cols-3 md:gap-6">
         {SUMMARY.map(({ at, title, items }) => (
           <div
             key={title}
             className={cn(reveal(t >= at), title === "Key ideas" && "max-md:hidden")}
           >
-            <p className="eyebrow">{title}</p>
-            <ul className="mt-1.5 flex flex-col gap-0.5 sm:mt-2 sm:gap-1">
+            <p className={LABEL}>{title}</p>
+            <ul className="mt-2 flex flex-col gap-1">
               {items.map((item) => (
-                <li key={item} className="flex items-center gap-2.5 text-sm leading-6">
+                <li key={item} className="flex items-center gap-2 text-sm">
                   <span className="bg-primary size-1.5 shrink-0 rounded-full" />
                   <span className="truncate">{item}</span>
                 </li>
@@ -296,11 +298,11 @@ function SummaryScene({ t }: { t: number }) {
           </div>
         ))}
         <div className={reveal(t >= NEXT_STEPS_AT)}>
-          <p className="eyebrow">Next steps</p>
-          <ul className="mt-1.5 flex flex-col gap-0.5 sm:mt-2 sm:gap-1">
+          <p className={LABEL}>Next steps</p>
+          <ul className="mt-2 flex flex-col gap-1">
             {NEXT_STEPS.map(({ task, owner }) => (
-              <li key={task} className="flex items-center gap-2.5 text-sm leading-6">
-                <span className="border-input size-3.5 shrink-0 rounded-[4px] border" />
+              <li key={task} className="flex items-center gap-2 text-sm">
+                <span className="border-input size-3.5 shrink-0 rounded-sm border" />
                 <span className="min-w-0 flex-1 truncate">{task}</span>
                 <span className="text-muted-foreground shrink-0 text-xs">{owner}</span>
               </li>
@@ -310,17 +312,17 @@ function SummaryScene({ t }: { t: number }) {
       </div>
       <div
         className={cn(
-          "bg-muted/50 mt-4 flex items-center gap-3 rounded-xl border border-dashed px-3 py-2.5 sm:mt-6 sm:px-4 sm:py-3",
+          "bg-muted mt-4 flex items-center gap-3 rounded-lg border border-dashed px-3 py-2 sm:mt-6 sm:px-4 sm:py-3",
           reveal(t >= DELIVERABLE_AT)
         )}
       >
-        <span className="bg-primary/10 text-primary flex size-8 shrink-0 items-center justify-center rounded-lg">
-          <Mail className="size-4" />
+        <span className="bg-primary/10 text-primary flex size-8 shrink-0 items-center justify-center rounded-md">
+          <EnvelopeSimpleIcon className="size-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-1.5 text-sm font-medium">
-            <span className="truncate">Draft follow-up email</span>
-            <Sparkles className="text-primary size-3.5 shrink-0" />
+          <p className="flex items-center gap-1 text-sm font-medium">
+            <span className="truncate">Draft follow up email</span>
+            <SparkleIcon weight="fill" className="text-primary size-3.5 shrink-0" />
           </p>
           <p className="text-muted-foreground truncate text-xs">
             Hi all, quick recap: we launch on October 14, and…
@@ -340,33 +342,33 @@ function ShareScene({ t }: { t: number }) {
   const exporting = t >= DOWNLOAD_AT + PRESS_MS && t < FILE_READY_AT;
   const pressed = (at: number) => t >= at && t < at + PRESS_MS;
   return (
-    <div className="flex flex-col gap-3.5 sm:gap-4">
+    <div className="flex flex-col gap-4">
       <div>
-        <p className="eyebrow">Share &amp; export</p>
-        <p className="font-display mt-1.5 truncate text-2xl">{MEETING}</p>
+        <p className={LABEL}>Share and export</p>
+        <p className="mt-1 truncate text-xl font-semibold">{MEETING}</p>
       </div>
-      <div className={cn("bg-card rounded-2xl border p-4 sm:p-5", CARD_SHADOW)}>
+      <div className={cn(CARD, "p-4 sm:p-6")}>
         <div className="flex items-center gap-3">
           <span
             className={cn(
-              "hidden size-9 shrink-0 items-center justify-center rounded-full transition-colors sm:flex",
+              "ease-fluid hidden size-8 shrink-0 items-center justify-center rounded-full transition-colors duration-700 sm:flex",
               shared ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
             )}
           >
-            {shared ? <Globe className="size-4" /> : <Lock className="size-4" />}
+            {shared ? <GlobeIcon className="size-4" /> : <LockSimpleIcon className="size-4" />}
           </span>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium">
               {shared ? "Anyone with the link" : "Only you"}
             </p>
             <p className="text-muted-foreground truncate text-xs">
-              {shared ? "View-only · no sign-in needed" : "This meeting is private."}
+              {shared ? "View only · no account needed" : "This meeting is private."}
             </p>
           </div>
           <span
             className={cn(
-              buttonVariants({ variant: shared ? "outline" : "default", size: "sm" }),
-              "shrink-0",
+              FAKE_BUTTON,
+              shared ? FAKE_OUTLINE : FAKE_PRIMARY,
               pressed(CREATE_LINK_AT) && PRESSED
             )}
           >
@@ -374,83 +376,77 @@ function ShareScene({ t }: { t: number }) {
           </span>
         </div>
         <div className={cn("mt-4 flex items-center gap-2", reveal(shared))}>
-          <span className="text-muted-foreground flex h-9 min-w-0 flex-1 items-center gap-2 rounded-md border px-3 font-mono text-xs shadow-xs">
-            <Globe className="size-3 shrink-0" />
+          <span className="text-muted-foreground flex h-9 min-w-0 flex-1 items-center gap-2 rounded-md border px-3 font-mono text-xs">
+            <GlobeIcon className="size-3 shrink-0" />
             <span className="truncate">breeze.app/share/7kq2m9xd</span>
           </span>
           <span
             className={cn(
-              buttonVariants({ variant: "outline", size: "sm" }),
-              "shrink-0",
+              FAKE_BUTTON,
+              FAKE_OUTLINE,
               copied && "text-success",
               pressed(COPY_LINK_AT) && PRESSED
             )}
           >
-            {copied ? <Check /> : <Copy />}
+            {copied ? (
+              <CheckIcon weight="bold" className="size-4" />
+            ) : (
+              <CopyIcon className="size-4" />
+            )}
             {copied ? "Copied" : "Copy"}
           </span>
         </div>
       </div>
-      <div className={cn("bg-card rounded-2xl border p-4 sm:p-5", CARD_SHADOW)}>
+      <div className={cn(CARD, "p-4 sm:p-6")}>
         <div className="flex items-center gap-3">
-          <span className="bg-muted text-muted-foreground hidden size-9 shrink-0 items-center justify-center rounded-full sm:flex">
-            <FileText className="size-4" />
+          <span className="bg-muted text-muted-foreground hidden size-8 shrink-0 items-center justify-center rounded-full sm:flex">
+            <FileTextIcon className="size-4" />
           </span>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium">Word document</p>
             <p className="text-muted-foreground truncate text-xs">Summary + transcript</p>
           </div>
-          <span
-            className={cn(
-              buttonVariants({ variant: "outline", size: "sm" }),
-              "shrink-0",
-              pressed(DOWNLOAD_AT) && PRESSED
+          <span className={cn(FAKE_BUTTON, FAKE_OUTLINE, pressed(DOWNLOAD_AT) && PRESSED)}>
+            {exporting ? (
+              <CircleNotchIcon className="size-4 animate-spin" />
+            ) : (
+              <FileArrowDownIcon className="size-4" />
             )}
-          >
-            {exporting ? <Loader2 className="animate-spin" /> : <FileDown />}
             Download .docx
           </span>
         </div>
         <div
           className={cn(
-            "bg-muted/50 mt-4 flex items-center gap-3 rounded-xl border px-3 py-2.5",
+            "bg-muted mt-4 flex items-center gap-3 rounded-lg border px-3 py-2",
             reveal(t >= FILE_READY_AT)
           )}
         >
-          <span className="bg-primary/10 text-primary flex size-8 shrink-0 items-center justify-center rounded-lg">
-            <FileText className="size-4" />
+          <span className="bg-primary/10 text-primary flex size-8 shrink-0 items-center justify-center rounded-md">
+            <FileTextIcon className="size-4" />
           </span>
           <span className="min-w-0 flex-1 truncate font-mono text-xs">q3-launch-planning.docx</span>
           <span className="text-muted-foreground shrink-0 font-mono text-xs tabular-nums">
             24 KB
           </span>
-          <Check className="text-success size-4 shrink-0" />
+          <CheckIcon weight="bold" className="text-success size-4 shrink-0" />
         </div>
       </div>
     </div>
   );
 }
 
+/* Flat browser bar: dots and an address pill, separated from the stage by surface color, not a rule. */
 function BrowserChrome({ path }: { path: string }) {
   return (
-    <div className="bg-muted/60">
-      <div className="flex items-end gap-3 border-b px-3 pt-2.5 sm:px-4">
-        <div className="flex shrink-0 gap-1.5 pb-3">
-          {[0, 1, 2].map((dot) => (
-            <span key={dot} className="bg-muted-foreground/30 size-2.5 rounded-full" />
-          ))}
-        </div>
-        <div className="bg-card relative -mb-px flex min-w-0 items-center gap-2 rounded-t-lg border border-b-0 px-3 py-2 text-xs font-medium">
-          <Wind className="text-primary size-3.5 shrink-0" />
-          <span className="truncate">Breeze</span>
-          <X className="text-muted-foreground ml-4 size-3 shrink-0" />
-        </div>
+    <div className="bg-muted flex items-center gap-4 px-4 py-3">
+      <div className="flex shrink-0 gap-2">
+        {[0, 1, 2].map((dot) => (
+          <span key={dot} className="bg-muted-foreground/30 size-2.5 rounded-full" />
+        ))}
       </div>
-      <div className="bg-card border-b px-3 py-2 sm:px-4">
-        <div className="bg-muted text-muted-foreground flex h-7 min-w-0 items-center gap-2 rounded-full px-3 font-mono text-xs">
-          <Lock className="size-3 shrink-0" />
-          <span className="truncate">breeze.app/{path}</span>
-        </div>
+      <div className="bg-background text-muted-foreground flex h-8 min-w-0 flex-1 items-center gap-2 rounded-full px-3 font-mono text-xs">
+        <LockSimpleIcon className="size-3 shrink-0" />
+        <span className="truncate">breeze.app/{path}</span>
       </div>
     </div>
   );
@@ -497,22 +493,22 @@ export function ProductDemo() {
   const fadingOut = time >= LOOP_MS - OUTRO_MS;
 
   return (
-    <figure ref={root} className="flex flex-col gap-5">
+    <figure ref={root} className="flex flex-col gap-6">
       <div
         aria-hidden="true"
         className={cn(
-          "bg-card overflow-hidden rounded-2xl border shadow-[0_10px_30px_-16px_color-mix(in_oklch,var(--foreground)_40%,transparent)] select-none",
+          "bg-card overflow-hidden rounded-3xl border shadow-[0_10px_30px_-16px_color-mix(in_oklch,var(--foreground)_40%,transparent)] select-none",
           // The Pause button also freezes looping CSS (waveform, spinners). Only then: pausing while
           // offscreen or reduced would freeze entrance fades at opacity 0 and blank the frame.
           paused && "**:[animation-play-state:paused]"
         )}
       >
         <BrowserChrome path={SCENES[scene]!.path} />
-        <div className="glow-bg bg-background h-[29rem] overflow-hidden sm:h-[31rem]">
+        <div className="bg-background h-116 overflow-hidden sm:h-124">
           <div
             key={scene}
             className={cn(
-              "animate-fade-in mx-auto max-w-3xl px-4 py-5 transition-opacity duration-700 sm:px-8 sm:py-8",
+              "animate-landing-fade ease-fluid mx-auto max-w-3xl px-4 py-6 transition-opacity duration-700 sm:p-8",
               fadingOut && "opacity-0"
             )}
           >
@@ -528,13 +524,14 @@ export function ProductDemo() {
         <span className="sr-only">
           Product tour: Breeze records your microphone and a meeting tab, builds a transcript
           labelled by speaker, writes a summary of key ideas, decisions, next steps and any extras
-          you ask for, then lets you share a view-only link or download the notes as a Word
+          you ask for, then lets you share a view only link or download the notes as a Word
           document.
         </span>
         <ol aria-hidden="true" className="grid flex-1 grid-cols-4 gap-3 sm:gap-6">
           {SCENES.map(({ label, ms }, index) => (
-            <li key={label} className="flex min-w-0 flex-col gap-2.5">
+            <li key={label} className="flex min-w-0 flex-col gap-2">
               <span className="bg-border h-0.5 overflow-hidden rounded-full">
+                {/* Linear on purpose: the bar tracks the 100ms tick of the scripted clock. */}
                 <span
                   className="bg-primary block h-full origin-left transition-transform duration-100 ease-linear"
                   style={{
@@ -554,7 +551,7 @@ export function ProductDemo() {
                 <span
                   className={cn(
                     "truncate text-xs sm:text-sm",
-                    index === scene ? "text-foreground" : "text-muted-foreground"
+                    index === scene ? "text-foreground font-medium" : "text-muted-foreground"
                   )}
                 >
                   {label}
@@ -564,15 +561,18 @@ export function ProductDemo() {
           ))}
         </ol>
         {!reducedMotion && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-muted-foreground -mt-2 shrink-0"
+          <button
+            type="button"
+            className="text-muted-foreground ease-fluid hover:bg-accent hover:text-foreground -mt-3 flex size-10 shrink-0 items-center justify-center rounded-full transition-[background-color,color,scale] duration-300 active:scale-[0.98]"
             aria-label={paused ? "Play product tour" : "Pause product tour"}
             onClick={() => setPaused((value) => !value)}
           >
-            {paused ? <Play /> : <Pause />}
-          </Button>
+            {paused ? (
+              <PlayIcon weight="fill" className="size-4" aria-hidden="true" />
+            ) : (
+              <PauseIcon weight="fill" className="size-4" aria-hidden="true" />
+            )}
+          </button>
         )}
       </figcaption>
     </figure>

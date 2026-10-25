@@ -33,7 +33,20 @@ function GoogleMark({ className }: { className?: string }) {
   );
 }
 
-export function GoogleSignInButton({ className }: { className?: string }) {
+type GoogleSignInButtonProps = {
+  /** Classes for the wrapper that holds the button and its error message. */
+  className?: string;
+  /** Classes merged onto the button itself, e.g. the home page's landing system sizing. */
+  buttonClassName?: string;
+  /** Idle label. Defaults to the standard Google wording used on the auth pages. */
+  label?: string;
+};
+
+export function GoogleSignInButton({
+  className,
+  buttonClassName,
+  label = "Continue with Google",
+}: GoogleSignInButtonProps) {
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState("");
 
@@ -72,7 +85,7 @@ export function GoogleSignInButton({ className }: { className?: string }) {
         onClick={handleSignIn}
         disabled={isPending}
         aria-busy={isPending}
-        className="w-full gap-3"
+        className={cn("w-full gap-3", buttonClassName)}
       >
         {/* The mark sits in a white chip so its colors stay legible on terracotta. */}
         <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-white">
@@ -82,7 +95,7 @@ export function GoogleSignInButton({ className }: { className?: string }) {
             <GoogleMark className="size-3.5" />
           )}
         </span>
-        {isPending ? "Connecting to Google…" : "Continue with Google"}
+        {isPending ? "Connecting to Google…" : label}
       </Button>
       {error && (
         <div
