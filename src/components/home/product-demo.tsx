@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 
 /* A scripted, silent product tour. One clock (`elapsed`, in ms) drives every reveal, so pausing the clock
    freezes the whole story. The fake UI is decorative: buttons are styled spans, never focusable.
-   Styled with the home page landing system (DESIGN.md "Home page"): Geist only, Tailwind type and
+   Styled with the home page landing system (DESIGN.md "Landing system"): Geist only, Tailwind type and
    spacing steps, Phosphor icons, flat surfaces. */
 
 const SCENES = [

@@ -3,7 +3,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-/* Scroll reveal for the home page (landing system, DESIGN.md "Home page").
+/* Scroll reveal for the home page (DESIGN.md "Landing system").
    Progressive enhancement: the server renders content fully visible, and only this effect hides it
    (via `data-reveal`), so pages without JS, with reduced motion, or without IntersectionObserver
    never hide anything. React never renders `data-reveal`, so it does not fight the DOM writes. */

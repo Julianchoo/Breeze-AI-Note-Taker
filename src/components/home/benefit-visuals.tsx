@@ -9,7 +9,7 @@ import {
 } from "@phosphor-icons/react/dist/ssr";
 import { cn } from "@/lib/utils";
 
-/* Small, static product vignettes for the home benefits bento (DESIGN.md "Home page").
+/* Small, static product vignettes for the home benefits bento (DESIGN.md "Landing system").
    They reuse the fictional meeting from ProductDemo (Q3 launch planning with Maya, Daniel and Priya)
    and only show things the app really does: summary sections, speaker renaming, notes for the AI,
    share links with section toggles, and search across meetings with the match highlighted.

@@ -29,7 +29,7 @@ import { cn } from "@/lib/utils";
 import type { Metadata } from "next";
 
 /* Public home page. Follows the landing system (.claude/skills/landing-page-design, recorded in
-   DESIGN.md "Home page"), a deliberate exception to the warm editorial system used everywhere else.
+   DESIGN.md "Landing system"), a deliberate exception to the warm editorial system used everywhere else.
    Every claim on this page is a fact about the product today; there is no invented social proof. */
 
 const TITLE = "Meeting notes without a bot in your call";

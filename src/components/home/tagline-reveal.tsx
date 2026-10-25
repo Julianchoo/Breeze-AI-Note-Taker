@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 
 /* Large tagline whose words brighten from a muted tone to full ink, one at a time in reading order,
-   as they cross a trigger line (landing system, DESIGN.md "Home page").
+   as they cross a trigger line (DESIGN.md "Landing system").
    Like Reveal, the muted state is only applied by this effect, so without JS or with reduced motion
    the tagline renders at full contrast. */
 
