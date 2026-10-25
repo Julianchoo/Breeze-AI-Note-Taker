@@ -494,28 +494,34 @@ export function ProductDemo() {
 
   return (
     <figure ref={root} className="flex flex-col gap-6">
+      {/* Bezel: a translucent 8px frame around the window gives the demo presence without a
+          gradient. Window radius = bezel radius (32px) minus the 8px gap. */}
       <div
         aria-hidden="true"
-        className={cn(
-          "bg-card overflow-hidden rounded-3xl border shadow-[0_10px_30px_-16px_color-mix(in_oklch,var(--foreground)_40%,transparent)] select-none",
-          // The Pause button also freezes looping CSS (waveform, spinners). Only then: pausing while
-          // offscreen or reduced would freeze entrance fades at opacity 0 and blank the frame.
-          paused && "**:[animation-play-state:paused]"
-        )}
+        className="border-foreground/10 bg-card/60 rounded-4xl border p-2 shadow-[0_48px_96px_-48px_color-mix(in_oklch,var(--foreground)_55%,transparent)] select-none"
       >
-        <BrowserChrome path={SCENES[scene]!.path} />
-        <div className="bg-background h-116 overflow-hidden sm:h-124">
-          <div
-            key={scene}
-            className={cn(
-              "animate-landing-fade ease-fluid mx-auto max-w-3xl px-4 py-6 transition-opacity duration-700 sm:p-8",
-              fadingOut && "opacity-0"
-            )}
-          >
-            {scene === 0 && <RecordScene t={t} />}
-            {scene === 1 && <TranscriptScene t={t} />}
-            {scene === 2 && <SummaryScene t={t} />}
-            {scene === 3 && <ShareScene t={t} />}
+        <div
+          className={cn(
+            "bg-card overflow-hidden rounded-3xl border",
+            // The Pause button also freezes looping CSS (waveform, spinners). Only then: pausing while
+            // offscreen or reduced would freeze entrance fades at opacity 0 and blank the frame.
+            paused && "**:[animation-play-state:paused]"
+          )}
+        >
+          <BrowserChrome path={SCENES[scene]!.path} />
+          <div className="bg-background h-116 overflow-hidden sm:h-124 lg:h-132">
+            <div
+              key={scene}
+              className={cn(
+                "animate-landing-fade ease-fluid mx-auto max-w-4xl px-4 py-6 transition-opacity duration-700 sm:p-8",
+                fadingOut && "opacity-0"
+              )}
+            >
+              {scene === 0 && <RecordScene t={t} />}
+              {scene === 1 && <TranscriptScene t={t} />}
+              {scene === 2 && <SummaryScene t={t} />}
+              {scene === 3 && <ShareScene t={t} />}
+            </div>
           </div>
         </div>
       </div>
