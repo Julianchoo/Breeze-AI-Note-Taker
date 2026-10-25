@@ -9,7 +9,7 @@ This document defines the visual design system for the project — a warm editor
 - **Framework:** Next.js (App Router) + React + TypeScript
 - **Styling:** Tailwind CSS v4 (CSS-first config via `@theme inline` in `globals.css` — no `tailwind.config.ts`)
 - **Components:** shadcn/ui (new-york style, neutral base structure, tokens overridden to the warm palette)
-- **Icons:** Lucide React
+- **Icons:** Lucide React (app wide); Phosphor (`@phosphor-icons/react`, pinned `2.1.10`) on the home page only, see "Home page (landing system)"
 - **Fonts:** Geist (sans), Geist Mono (mono), Instrument Serif (display) — all via `next/font/google`
 - **Dark mode:** next-themes (class-based, system default, 3-way toggle: Light / Dark / System)
 - **Utilities:** `cn()` from `@/lib/utils` (clsx + tailwind-merge)
@@ -392,3 +392,59 @@ Custom icons per state (`CircleCheckIcon`, `InfoIcon`, `TriangleAlertIcon`, `Oct
 - **Toggle:** `ModeToggle` in the header (3-way: Light / Dark / System).
 - All semantic tokens swap under the `.dark` selector in `globals.css` — the same warm hue family, shifted darker/desaturated ("the same paper, lit by lamplight rather than daylight," per the file's own comment).
 - **Rule:** components must consume semantic tokens (`bg-background`, `text-foreground`, `bg-primary`, etc.) only. No hard-coded hex/gray values, except the documented Google-mark exception above.
+
+---
+
+## Home page (landing system)
+
+The public home (`src/app/page.tsx`, `src/components/home/*`) deliberately does **not** follow the warm editorial system above. It follows the vendored landing skill (`.claude/skills/landing-page-design/SKILL.md`, Part B). Everything else (signed in app, auth pages, share pages, Android page, header, footer) still follows the warm editorial system. Do not copy landing patterns into the app, and do not use editorial utilities (`font-display`, `.eyebrow`, `.glow-bg`, `.rule-fade`, `animate-fade-up`) on the home.
+
+### Scope and tokens
+
+Everything sits inside a `.landing` wrapper defined in `globals.css` (outside `@layer`, after the utilities). It re-points semantic tokens, so primitives rendered on the home resolve to landing surfaces:
+
+| Token | Light | Dark |
+|---|---|---|
+| `--background` (page) | unchanged warm paper (flat) | `#131209` |
+| `--card` / `--popover` | unchanged | `#1F1F1F` |
+| `--muted` / `--secondary` | unchanged | `#272727` |
+| `--accent` (hover surfaces) | unchanged | `#313131` |
+| `--landing-heading-from` → `--landing-heading-to` | `#000000` → `#666666` | `#FFFFFF` → `#9B9B9B` |
+| `--radius` | `0.5rem` | `0.5rem` |
+
+- **Dark backgrounds** may only use `#000000`, `#181818`, `#1F1F1F`, `#272727`, `#313131`, `#131209`. `.dark body:has(.landing)` paints the canvas `#131209` so the shared header and footer sit on the same surface.
+- **Primary** stays the terracotta `primary` token: CTA, labels, icon chips, small highlights.
+- **Radius:** with `--radius: 0.5rem` the project scale equals Tailwind's defaults (`sm` 4px, `md` 6px, `lg` 8px, `xl` 12px); `rounded-2xl` would be 18px, so the home uses `rounded-3xl` (24px) for large cards instead. Nested shapes follow `inner = outer − gap` when the gap is under 32px and the result is above 2px.
+- **Flat surfaces:** no background gradients, no `.glow-bg`, no single sided borders (cards are fully bordered or not at all; dividers inside the demo are `h-px bg-border` rules or surface changes).
+
+### Hero heading gradient
+
+`.text-heading-gradient` (in `@layer utilities`) clips a left to right `linear-gradient(var(--landing-heading-from), var(--landing-heading-to))` to the text. It is the only gradient on the home, used only on the hero `h1`, and falls back to `CanvasText` under `forced-colors`. Hero heading and subheading are capped at `max-w-170` (680px), with each sentence on its own block line so breaks follow the thought.
+
+### Type and copy
+
+- Geist only. No `font-display`, no italics, weights up to `font-semibold`. Geist Mono only for numeric UI (step numbers, timestamps, the demo stopwatch).
+- Tailwind type steps only, no `text-[…]`. Section label (the home's eyebrow) is `text-primary text-sm font-semibold`, sentence case. Line height comes from the step; only `tracking-tight` is added on large headings.
+- `text-balance` on headings, `text-pretty` on body copy.
+- Copy: sentence case, no hyphens or dashes inside sentences, no AI cliches, CTA is a verb plus what you get ("Record your first meeting"). Only state facts true of the product; no invented testimonials, logos or numbers.
+
+### Spacing and buttons
+
+Padding, margin and gap only from `0, 0.5, 1, 2, 3, 4, 6, 8, 10, 12, 16, 20, 24` (Tailwind units). The primary CTA (`HomeCta`, wrapping the shared `GoogleSignInButton` through its `label`, `className` and `buttonClassName` props) is `text-base font-semibold`, `py-2`, with the Google chip inset `pl-2` so it sits concentric with the pill (`pr-4` for optical balance). The same CTA renders at the top and bottom of the page.
+
+### Icons
+
+Phosphor, imported from `@phosphor-icons/react/dist/ssr` using the `…Icon` export names (works in server and client components). Home only; Lucide stays everywhere else.
+
+### Motion
+
+- Curve: `--ease-fluid: cubic-bezier(0.32, 0.72, 0, 1)` (`ease-fluid` utility). Reveals and transforms run 700 to 1000ms; hover colour shifts 300ms on the same curve. Tick driven progress bars in the demo stay `ease-linear` on purpose.
+- `animate-landing-rise` (1000ms, fade up with blur) staggers the hero in on load via `[animation-delay:NNms]`; `animate-landing-fade` (700ms) switches demo scenes.
+- `Reveal` (`src/components/home/reveal.tsx`): IntersectionObserver scroll reveal, `translate-y-16 blur-md opacity-0` to visible over 1000ms. It only hides content from its effect via `data-reveal`, skips anything already on screen at mount, and does nothing without IntersectionObserver or under reduced motion, so content is always visible without JS.
+- `TaglineReveal` (`src/components/home/tagline-reveal.tsx`): the mandatory large tagline section. Words start at `text-foreground/30` and light one at a time in reading order (70ms apart) as they cross a trigger line at 65% of the viewport, one IntersectionObserver over the words, never a scroll listener. Same progressive enhancement rules as `Reveal`.
+- The global reduced motion guard still applies.
+
+### Structure and SEO
+
+Hero (label, gradient `h1`, subheading, CTA, one factual proof line, `ProductDemo`), problem to solution, five benefits, three steps, tagline reveal, FAQ (native `<details>`), risk reversal with the final CTA. The FAQ array in `src/components/home/faq.tsx` feeds both the visible list and the `FAQPage` JSON-LD. The page sets its own title and description.
+
