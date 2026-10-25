@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowClockwiseIcon,
   ArrowCounterClockwiseIcon,
@@ -29,6 +29,8 @@ import {
   saveRecording,
   type CachedRecording,
 } from "@/lib/recording-cache";
+import { AudioLevelMeter } from "./recorder/audio-level-meter";
+import { RecordHandoff } from "./recorder/record-handoff";
 
 /* Landing system classes (DESIGN.md "Landing system"), shared by the recorder's buttons, disclosures
    and alerts so every state reads the same. Markup only: no recording behaviour depends on them. */
@@ -94,6 +96,14 @@ export function MeetingRecorder({
   const [dragging, setDragging] = useState(false);
   // Kept after a failed upload so Retry resumes the same meeting instead of creating another.
   const [fileJob, setFileJob] = useState<{ id: string; chunks: Int16Array[] } | null>(null);
+  // Read-only references for the level meter: the same streams captureAudio() records, never
+  // stopped or changed by the meter. The recorder below keeps owning their lifecycle.
+  const [micLevelStreams, setMicLevelStreams] = useState<MediaStream[]>([]);
+  const [tabLevelStream, setTabLevelStream] = useState<MediaStream | null>(null);
+  const levelStreams = useMemo(
+    () => (tabAttached && tabLevelStream ? [...micLevelStreams, tabLevelStream] : micLevelStreams),
+    [micLevelStreams, tabAttached, tabLevelStream]
+  );
 
   useEffect(() => {
     // One-time capability probe: getDisplayMedia is undefined during SSR and on browsers
@@ -339,6 +349,7 @@ export function MeetingRecorder({
       recorder.current = capture;
       startedAt.current = performance.now();
       setElapsed(0);
+      setMicLevelStreams([...streams]);
       setPhase("recording");
     } catch (cause) {
       streams.forEach((stream) => stream.getTracks().forEach((track) => track.stop()));
@@ -381,6 +392,7 @@ export function MeetingRecorder({
         detachTab.current = null;
         setTabAttached(false);
       });
+      setTabLevelStream(display);
       setTabAttached(true);
     } catch (cause) {
       display?.getTracks().forEach((track) => track.stop());
@@ -533,63 +545,69 @@ export function MeetingRecorder({
         </section>
       ) : null}
 
-      <div className="bg-card animate-landing-rise rounded-3xl border p-3 shadow-xs [animation-delay:80ms]">
+      {/* Arriving from the Record circle (autoStart), the clock well morphs in from the circle, so the
+          card skips its own entrance instead of fading in around the well a second time. */}
+      <div className={`bg-card rounded-3xl border p-3 shadow-xs ${autoStart ? "" : "animate-landing-rise [animation-delay:80ms]"}`}>
         {/* The clock: the hero of this screen once the tape is rolling. Outer 24px radius, 12px gap: 12px well. */}
-        <div
-          className={`ease-fluid rounded-xl px-4 py-10 text-center transition-colors duration-700 ${
-            phase === "recording"
-              ? "bg-destructive/8"
-              : phase === "saving"
-                ? "bg-primary/8"
-                : "bg-band"
-          }`}
-        >
-          <span className="bg-card inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold">
-            {phase === "saving" || phase === "starting" ? (
-              <CircleNotchIcon className="text-primary size-3 animate-spin" aria-hidden="true" />
-            ) : (
-              <span
-                aria-hidden="true"
-                className={`size-2 rounded-full transition-colors ${
-                  phase === "recording"
-                    ? "bg-destructive animate-pulse-ring"
-                    : phase === "stopped"
-                      ? "bg-primary"
-                      : "bg-muted-foreground/40"
-                }`}
-              />
-            )}
-            {phase === "recording"
-              ? "Recording"
-              : phase === "saving"
-                ? "Saving"
-                : phase === "starting"
-                  ? "Getting ready"
-                  : phase === "stopped"
-                    ? "Stopped"
-                    : "Standing by"}
-          </span>
-          <p
-            className={`ease-fluid mt-6 font-mono text-5xl tracking-tight tabular-nums transition-colors duration-700 sm:text-6xl ${
-              phase === "recording" || phase === "saving" || phase === "stopped"
-                ? "text-foreground"
-                : "text-muted-foreground/45"
+        <RecordHandoff>
+          <div
+            className={`ease-fluid rounded-xl px-4 py-10 text-center transition-colors duration-700 ${
+              phase === "recording"
+                ? "bg-destructive/8"
+                : phase === "saving"
+                  ? "bg-primary/8"
+                  : "bg-band"
             }`}
           >
-            {String(Math.floor(elapsed / 3600)).padStart(2, "0")}:
-            {String(Math.floor(elapsed / 60) % 60).padStart(2, "0")}:
-            {String(elapsed % 60).padStart(2, "0")}
-          </p>
-          <p className="text-muted-foreground mx-auto mt-4 max-w-xs text-sm text-pretty" aria-live="polite">
-            {phase === "recording"
-              ? tabAttached
-                ? "Microphone and meeting tab · keep this tab open"
-                : "Microphone · keep this tab open"
-              : phase === "saving"
-                ? "Saving your recording…"
-                : "Up to 4 hours · English and Spanish detected automatically"}
-          </p>
-        </div>
+            <span className="bg-card inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold">
+              {phase === "saving" || phase === "starting" ? (
+                <CircleNotchIcon className="text-primary size-3 animate-spin" aria-hidden="true" />
+              ) : (
+                <span
+                  aria-hidden="true"
+                  className={`size-2 rounded-full transition-colors ${
+                    phase === "recording"
+                      ? "bg-destructive animate-pulse-ring"
+                      : phase === "stopped"
+                        ? "bg-primary"
+                        : "bg-muted-foreground/40"
+                  }`}
+                />
+              )}
+              {phase === "recording"
+                ? "Recording"
+                : phase === "saving"
+                  ? "Saving"
+                  : phase === "starting"
+                    ? "Getting ready"
+                    : phase === "stopped"
+                      ? "Stopped"
+                      : "Standing by"}
+            </span>
+            <p
+              className={`ease-fluid mt-6 font-mono text-5xl tracking-tight tabular-nums transition-colors duration-700 sm:text-6xl ${
+                phase === "recording" || phase === "saving" || phase === "stopped"
+                  ? "text-foreground"
+                  : "text-muted-foreground/45"
+              }`}
+            >
+              {String(Math.floor(elapsed / 3600)).padStart(2, "0")}:
+              {String(Math.floor(elapsed / 60) % 60).padStart(2, "0")}:
+              {String(elapsed % 60).padStart(2, "0")}
+            </p>
+            {/* Decorative live input level; the status pill above stays the accessible status. */}
+            <AudioLevelMeter streams={levelStreams} active={phase === "recording"} />
+            <p className="text-muted-foreground mx-auto mt-4 max-w-xs text-sm text-pretty" aria-live="polite">
+              {phase === "recording"
+                ? tabAttached
+                  ? "Microphone and meeting tab · keep this tab open"
+                  : "Microphone · keep this tab open"
+                : phase === "saving"
+                  ? "Saving your recording…"
+                  : "Up to 4 hours · English and Spanish detected automatically"}
+            </p>
+          </div>
+        </RecordHandoff>
 
         <div className="px-3 pt-6 pb-3">
           {/* The commitment. */}

@@ -1,6 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Check, Loader2, Plus, RotateCcw, TriangleAlert } from "lucide-react";
+import {
+  ArrowClockwiseIcon,
+  CheckIcon,
+  CircleNotchIcon,
+  PaperPlaneTiltIcon,
+  PlusIcon,
+  WarningIcon,
+} from "@phosphor-icons/react/dist/ssr";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,23 +44,23 @@ function Chips({
   onToggle: (id: string) => void;
 }) {
   return (
-    <fieldset className="flex flex-col gap-2.5">
-      <legend className="mb-2.5 text-sm font-medium">
+    <fieldset className="flex flex-col gap-3">
+      <legend className="mb-3 text-sm font-semibold">
         {legend} <span className="text-muted-foreground font-normal">(optional)</span>
       </legend>
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap gap-2">
         {options.map(({ id, name }) => {
           const on = selected.includes(id);
           return (
             <Button
               key={id}
               type="button"
-              size="sm"
               variant={on ? "default" : "outline"}
               aria-pressed={on}
               onClick={() => onToggle(id)}
+              className="ease-fluid h-10 px-3 font-semibold duration-300"
             >
-              {on && <Check aria-hidden="true" />}
+              {on && <CheckIcon aria-hidden="true" />}
               {name}
             </Button>
           );
@@ -135,7 +142,7 @@ function NotionForm({ meeting, onSent }: { meeting: Meeting; onSent: (url: strin
       }}
     >
       <div className="flex flex-col gap-2">
-        <label htmlFor="notion-name" className="text-sm font-medium">
+        <label htmlFor="notion-name" className="text-sm font-semibold">
           Name
         </label>
         <Input
@@ -144,10 +151,11 @@ function NotionForm({ meeting, onSent }: { meeting: Meeting; onSent: (url: strin
           maxLength={2000}
           value={name}
           onChange={(event) => setName(event.target.value)}
+          className="h-11 rounded-lg"
         />
       </div>
       <div className="flex flex-col gap-2">
-        <label htmlFor="notion-date" className="text-sm font-medium">
+        <label htmlFor="notion-date" className="text-sm font-semibold">
           Meeting date <span className="text-muted-foreground font-normal">(optional)</span>
         </label>
         <Input
@@ -155,29 +163,30 @@ function NotionForm({ meeting, onSent }: { meeting: Meeting; onSent: (url: strin
           type="date"
           value={date}
           onChange={(event) => setDate(event.target.value)}
-          className="font-mono tabular-nums"
+          className="h-11 rounded-lg font-mono tabular-nums"
         />
       </div>
 
       {loadError ? (
         <div
           role="alert"
-          className="border-destructive/25 bg-destructive/5 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4"
+          className="border-destructive/25 bg-destructive/5 flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3"
         >
-          <p className="text-destructive flex items-start gap-2.5 text-sm leading-6">
-            <TriangleAlert className="mt-1 size-4 shrink-0" aria-hidden="true" />
+          <p className="text-destructive flex items-start gap-2 text-sm text-pretty">
+            <WarningIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             {loadError}
           </p>
           <Button
             type="button"
             variant="outline"
             size="sm"
+            className="ease-fluid h-10 px-3 font-semibold duration-300"
             onClick={() => {
               setLoadError("");
               setAttempt((value) => value + 1);
             }}
           >
-            <RotateCcw />
+            <ArrowClockwiseIcon aria-hidden="true" />
             Try again
           </Button>
         </div>
@@ -185,18 +194,23 @@ function NotionForm({ meeting, onSent }: { meeting: Meeting; onSent: (url: strin
         <div role="status" aria-busy="true" className="flex flex-col gap-3">
           <span className="sr-only">Loading Notion options</span>
           <Skeleton className="h-4 w-20 rounded-full" />
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-2">
             {["w-20", "w-24", "w-16", "w-28", "w-20", "w-24"].map((width, index) => (
-              <Skeleton key={index} className={`h-8 rounded-full ${width}`} />
+              <Skeleton key={index} className={`h-10 rounded-full ${width}`} />
             ))}
           </div>
           <Skeleton className="h-4 w-16 rounded-full" />
-          <Skeleton className="h-9 w-full" />
+          <Skeleton className="h-11 w-full rounded-lg" />
         </div>
       ) : (
         <>
-          <Chips legend="Pillars" options={options.pillars} selected={pillars} onToggle={(id) => setPillars(toggle(pillars, id))} />
-          <div className="flex flex-col gap-2.5">
+          <Chips
+            legend="Pillars"
+            options={options.pillars}
+            selected={pillars}
+            onToggle={(id) => setPillars(toggle(pillars, id))}
+          />
+          <div className="flex flex-col gap-3">
             <Chips
               legend="Tema"
               options={temaChips.map((tema) => ({ id: tema, name: tema }))}
@@ -218,23 +232,29 @@ function NotionForm({ meeting, onSent }: { meeting: Meeting; onSent: (url: strin
                   event.preventDefault();
                   addTema();
                 }}
-                className="min-w-0 flex-1"
+                className="h-11 min-w-0 flex-1 rounded-lg"
               />
-              <Button type="button" variant="outline" disabled={!newTema.trim()} onClick={addTema}>
-                <Plus />
+              <Button
+                type="button"
+                variant="outline"
+                className="ease-fluid h-11 font-semibold duration-300"
+                disabled={!newTema.trim()}
+                onClick={addTema}
+              >
+                <PlusIcon aria-hidden="true" />
                 Add
               </Button>
             </div>
           </div>
           <div className="flex flex-col gap-2">
-            <label htmlFor="notion-type" className="text-sm font-medium">
+            <label htmlFor="notion-type" className="text-sm font-semibold">
               Type <span className="text-muted-foreground font-normal">(optional)</span>
             </label>
             <select
               id="notion-type"
               value={type}
               onChange={(event) => setType(event.target.value)}
-              className="border-input dark:bg-input/30 focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-md border bg-transparent px-3 text-base shadow-xs outline-none focus-visible:ring-[3px] md:text-sm"
+              className="border-input dark:bg-input/30 focus-visible:border-ring focus-visible:ring-ring/50 h-11 w-full rounded-lg border bg-transparent px-3 text-base shadow-xs outline-none focus-visible:ring-[3px] md:text-sm"
             >
               <option value="">None</option>
               {options.types.map((option) => (
@@ -248,7 +268,7 @@ function NotionForm({ meeting, onSent }: { meeting: Meeting; onSent: (url: strin
       )}
 
       <div className="flex flex-col gap-2">
-        <label htmlFor="notion-participants" className="text-sm font-medium">
+        <label htmlFor="notion-participants" className="text-sm font-semibold">
           Participants <span className="text-muted-foreground font-normal">(optional)</span>
         </label>
         <Input
@@ -256,11 +276,20 @@ function NotionForm({ meeting, onSent }: { meeting: Meeting; onSent: (url: strin
           maxLength={2000}
           value={participants}
           onChange={(event) => setParticipants(event.target.value)}
+          className="h-11 rounded-lg"
         />
       </div>
       <DialogFooter>
-        <Button type="submit" disabled={sending || !options || !name.trim()}>
-          {sending && <Loader2 className="animate-spin" aria-hidden="true" />}
+        <Button
+          type="submit"
+          disabled={sending || !options || !name.trim()}
+          className="ease-fluid h-12 w-full text-base font-semibold duration-300 hover:-translate-y-0.5 active:translate-y-0 sm:w-auto"
+        >
+          {sending ? (
+            <CircleNotchIcon className="animate-spin" aria-hidden="true" />
+          ) : (
+            <PaperPlaneTiltIcon aria-hidden="true" />
+          )}
           Send to Notion
         </Button>
       </DialogFooter>
@@ -281,10 +310,11 @@ export function NotionDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto">
-        <DialogHeader>
+      {/* Portaled outside .landing, so landing-island brings the landing tokens along. */}
+      <DialogContent className="landing-island max-h-[90dvh] overflow-y-auto rounded-3xl p-6 sm:p-8">
+        <DialogHeader className="text-left">
           <DialogTitle>Send to Notion</DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-pretty">
             Creates a new page in your Meetings database with the summary and transcript.
           </DialogDescription>
         </DialogHeader>

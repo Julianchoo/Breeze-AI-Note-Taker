@@ -1,6 +1,6 @@
 "use client";
 
-import { Info, TriangleAlert } from "lucide-react";
+import { CaretDownIcon, InfoIcon, WarningIcon } from "@phosphor-icons/react/dist/ssr";
 import {
   Dialog,
   DialogContent,
@@ -40,7 +40,7 @@ export function AiCostBreakdown({ costs }: { costs: AiCosts }) {
       <DialogTrigger asChild>
         <button
           type="button"
-          className="hover:text-foreground inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-sm text-left underline decoration-dotted underline-offset-4 transition-colors"
+          className="ease-fluid hover:text-foreground focus-visible:ring-ring/50 inline-flex min-h-8 cursor-pointer items-center gap-1 rounded-sm text-left underline decoration-dotted underline-offset-4 transition-colors duration-300 focus-visible:ring-[3px] focus-visible:outline-none"
           aria-label={`${headline}. View cost breakdown`}
         >
           <span>
@@ -52,25 +52,26 @@ export function AiCostBreakdown({ costs }: { costs: AiCosts }) {
             )}
             {total ? ` AI ${incomplete ? "subtotal" : "estimate"}` : headline}
           </span>
-          <Info className="size-3.5 shrink-0" aria-hidden="true" />
+          <InfoIcon className="size-4 shrink-0" aria-hidden="true" />
         </button>
       </DialogTrigger>
-      <DialogContent className="max-h-[85dvh] overflow-y-auto rounded-xl">
-        <DialogHeader className="pr-5 text-left">
+      {/* Portaled outside .landing, so landing-island brings the landing tokens along. */}
+      <DialogContent className="landing-island max-h-[85dvh] overflow-y-auto rounded-3xl p-6 sm:p-8">
+        <DialogHeader className="pr-6 text-left">
           <DialogTitle>Estimated AI cost</DialogTitle>
-          <DialogDescription className="leading-6">
+          <DialogDescription className="text-pretty">
             Transcription and analysis for this meeting, including recorded retries and regenerated
             summaries.
           </DialogDescription>
         </DialogHeader>
 
         {incomplete && (
-          <div className="border-border bg-muted/50 flex items-start gap-2.5 rounded-lg border p-3 text-sm leading-6">
-            <TriangleAlert
-              className="text-muted-foreground mt-1 size-4 shrink-0"
+          <div className="bg-band flex items-start gap-2 rounded-xl px-4 py-3 text-sm">
+            <WarningIcon
+              className="text-muted-foreground mt-0.5 size-4 shrink-0"
               aria-hidden="true"
             />
-            <p>
+            <p className="text-pretty">
               {costs.unknownAttempts > 0 &&
                 `${costs.unknownAttempts} ${costs.unknownAttempts === 1 ? "attempt has an unknown cost" : "attempts have unknown costs"}. `}
               {costs.pendingAttempts > 0 &&
@@ -80,7 +81,8 @@ export function AiCostBreakdown({ costs }: { costs: AiCosts }) {
           </div>
         )}
 
-        <dl className="divide-border divide-y text-sm">
+        {/* A band well with hairline rules between rows (DESIGN.md: rules or surface changes, no side borders on cards). */}
+        <dl className="bg-band divide-border divide-y rounded-xl px-4 text-sm">
           {(
             [
               ["transcription", "Transcription", "Soniox", costs.transcriptionUsd],
@@ -94,7 +96,7 @@ export function AiCostBreakdown({ costs }: { costs: AiCosts }) {
             return (
               <div key={stage} className="flex items-baseline justify-between gap-4 py-3">
                 <dt>
-                  <span className="font-medium">{title}</span>
+                  <span className="font-semibold">{title}</span>
                   <span className="text-muted-foreground mt-0.5 block text-xs">
                     {provider}
                     {attempts.length > 0
@@ -120,7 +122,7 @@ export function AiCostBreakdown({ costs }: { costs: AiCosts }) {
           {costs.legacyUsd !== null && (
             <div className="flex items-baseline justify-between gap-4 py-3">
               <dt>
-                <span className="font-medium">Earlier cost</span>
+                <span className="font-semibold">Earlier cost</span>
                 <span className="text-muted-foreground mt-0.5 block text-xs">
                   No breakdown was recorded
                 </span>
@@ -128,7 +130,7 @@ export function AiCostBreakdown({ costs }: { costs: AiCosts }) {
               <dd className="shrink-0 font-mono tabular-nums">{amount(costs.legacyUsd)}</dd>
             </div>
           )}
-          <div className="flex items-baseline justify-between gap-4 py-3 font-medium">
+          <div className="flex items-baseline justify-between gap-4 py-3 font-semibold">
             <dt>{incomplete ? "Recorded subtotal" : "Total estimate"}</dt>
             <dd className="font-mono tabular-nums">
               {total ? `${total}${incomplete ? " +" : ""}` : "Unavailable"}
@@ -137,18 +139,22 @@ export function AiCostBreakdown({ costs }: { costs: AiCosts }) {
         </dl>
 
         {costs.attempts.length > 0 && (
-          <details className="border-border rounded-lg border px-3">
-            <summary className="min-h-10 cursor-pointer py-2.5 text-sm font-medium">
+          <details className="group/history rounded-xl border px-2">
+            <summary className="ease-fluid hover:bg-accent focus-visible:ring-ring/50 -mx-2 flex min-h-12 cursor-pointer list-none items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-colors duration-300 focus-visible:ring-[3px] focus-visible:outline-none [&::-webkit-details-marker]:hidden">
               Processing history
+              <CaretDownIcon
+                className="text-muted-foreground ease-fluid ml-auto size-4 transition-transform duration-300 group-open/history:rotate-180"
+                aria-hidden="true"
+              />
             </summary>
-            <ul className="divide-border divide-y pb-1">
+            <ul className="divide-border divide-y px-2 pb-1">
               {costs.attempts.map((attempt, index) => (
                 <li
                   key={attempt.id}
                   className="flex items-start justify-between gap-3 py-3 text-xs"
                 >
                   <div className="min-w-0">
-                    <p className="font-medium">
+                    <p className="font-semibold">
                       {attempt.stage === "transcription" ? "Transcription" : "Analysis"} · attempt{" "}
                       {index + 1}
                     </p>
@@ -166,7 +172,7 @@ export function AiCostBreakdown({ costs }: { costs: AiCosts }) {
                     </time>
                     <p className="text-muted-foreground mt-1">
                       {attempt.provider === "soniox" && attempt.status === "reported"
-                        ? "Provider-reported cost"
+                        ? "Cost reported by the provider"
                         : statusLabels[attempt.status]}
                     </p>
                   </div>
@@ -179,8 +185,8 @@ export function AiCostBreakdown({ costs }: { costs: AiCosts }) {
           </details>
         )}
 
-        <p className="text-muted-foreground text-xs leading-5">
-          Amounts are in USD and include provider-reported costs and list-price estimates. Final
+        <p className="text-muted-foreground text-xs text-pretty">
+          Amounts are in USD and include costs reported by providers and list price estimates. Final
           invoices may differ.
           {costs.estimatedAttempts > 0
             ? " Some usage is estimated rather than reported by the provider."

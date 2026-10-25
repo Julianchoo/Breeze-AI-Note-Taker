@@ -22,6 +22,13 @@ const nextConfig: NextConfig = {
   // Enable compression
   compress: true,
 
+  // Opt in to React's <ViewTransition> (page transitions inside /meetings, see
+  // src/components/meetings/meetings-view-transition.tsx). The App Router's bundled React canary
+  // provides the component; this is the documented Next.js flag for using it.
+  experimental: {
+    viewTransition: true,
+  },
+
   // Security headers
   async headers() {
     return [

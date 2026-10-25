@@ -4,22 +4,31 @@ import Link from "next/link";
 import { archiveAudioStatus } from "@/lib/audio-status";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeft,
-  ArrowUpRight,
-  Check,
-  Copy,
-  Download,
-  FileDown,
-  Globe,
-  Loader2,
-  Lock,
-  Pencil,
-  RotateCcw,
-  Send,
-  Share2,
-  Trash2,
-  TriangleAlert,
-} from "lucide-react";
+  ArrowClockwiseIcon,
+  ArrowLeftIcon,
+  ArrowUpRightIcon,
+  ArticleIcon,
+  CheckCircleIcon,
+  CheckIcon,
+  CircleNotchIcon,
+  CloudCheckIcon,
+  CloudWarningIcon,
+  CopyIcon,
+  DownloadSimpleIcon,
+  FileDocIcon,
+  GlobeIcon,
+  LockIcon,
+  PaperPlaneTiltIcon,
+  PencilSimpleIcon,
+  ShareNetworkIcon,
+  SparkleIcon,
+  TextAlignLeftIcon,
+  TrashIcon,
+  UploadSimpleIcon,
+  UsersIcon,
+  WarningIcon,
+  WaveformIcon,
+} from "@phosphor-icons/react/dist/ssr";
 import { toast } from "sonner";
 import { AiCostBreakdown } from "@/components/meetings/ai-cost-breakdown";
 import {
@@ -64,6 +73,23 @@ import {
 } from "@/lib/recording-cache";
 import { ADMIN_EMAIL } from "@/lib/utils";
 
+/* Landing system (DESIGN.md "Signed in landing screens"): shared class sets for this screen. */
+const CARD = "bg-card rounded-3xl border shadow-xs";
+const LABEL = "text-primary text-sm font-semibold";
+const SECTION_HEADING = "text-2xl font-semibold tracking-tight text-balance";
+const MAIN_BUTTON =
+  "ease-fluid h-14 w-full px-6 text-base font-semibold duration-300 hover:-translate-y-0.5 active:translate-y-0 sm:w-auto";
+const SMALL_BUTTON = "ease-fluid font-semibold duration-300";
+/* Header actions: equal width thumb targets on phones, compact pills from sm. */
+const HEADER_ACTION =
+  "ease-fluid bg-card dark:bg-card dark:hover:bg-accent h-12 min-w-0 flex-1 px-3 font-semibold duration-300 has-[>svg]:px-3 sm:h-10 sm:flex-none sm:px-4 sm:has-[>svg]:px-4";
+const MENU_ITEM = "rounded-lg px-3 py-3";
+/* Dialogs are portaled outside .landing; landing-island re-points the landing tokens there. */
+const DIALOG = "landing-island rounded-3xl p-6 sm:p-8";
+/* Anchored sections clear the sticky site header (var(--sticky-top), APK inset included) and the
+   section switcher below it: 0.5rem gap, the 46px pill and 1rem of breathing room. */
+const ANCHOR = "scroll-mt-[calc(var(--sticky-top)+4.5rem)]";
+
 /* Ticks only while mounted; keyed by phase so the elapsed time restarts when transcription hands off to the summary. */
 function ProcessingProgress({
   audioSeconds,
@@ -81,18 +107,19 @@ function ProcessingProgress({
   const percent = estimateProgress(audioSeconds, transcribed, elapsed);
   return (
     // Not a live region: the section's status role would otherwise re-announce every tick.
-    <div aria-live="off" className="mt-5 flex items-center gap-3">
+    <div aria-live="off" className="mt-6 flex items-center gap-3">
       <div
         role="progressbar"
         aria-label={transcribed ? "Summary progress" : "Transcription progress"}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={percent}
-        aria-valuetext={`About ${percent}% — estimated`}
-        className="bg-muted h-1.5 flex-1 overflow-hidden rounded-full"
+        aria-valuetext={`About ${percent}%, estimated`}
+        className="bg-foreground/10 h-1.5 flex-1 overflow-hidden rounded-full"
       >
+        {/* Tick driven, so it stays linear on purpose (DESIGN.md, landing motion). */}
         <div
-          className="bg-primary h-full rounded-full transition-[width] duration-500 ease-out"
+          className="bg-primary h-full rounded-full transition-[width] duration-500 ease-linear"
           style={{ width: `${percent}%` }}
         />
       </div>
@@ -317,44 +344,72 @@ export function MeetingDetailView({ id }: { id: string }) {
   }
   if (!detail)
     return (
-      <div className="mx-auto max-w-4xl px-4 py-16">
-        {error ? (
-          <div className="animate-fade-up mx-auto flex max-w-md flex-col items-center gap-6 text-center">
-            <span
-              className="bg-destructive/10 text-destructive flex size-12 items-center justify-center rounded-full"
-              aria-hidden="true"
-            >
-              <TriangleAlert className="size-5" />
-            </span>
-            <div className="flex flex-col gap-2">
-              <h2 className="font-display text-3xl">We could not open this meeting</h2>
-              <p role="alert" className="text-muted-foreground text-sm leading-6">
-                {error}
-              </p>
-            </div>
-            <div className="flex flex-col items-center gap-4">
-              <Button variant="outline" onClick={() => setRetry((value) => value + 1)}>
-                <RotateCcw />
-                Try again
-              </Button>
-              <Link
-                href="/meetings/history"
-                className="text-muted-foreground hover:text-foreground inline-flex items-center gap-2 text-sm transition-colors"
+      <div className="landing">
+        <div className="mx-auto max-w-3xl px-4 pt-10 pb-20 sm:px-6 sm:pt-12 sm:pb-24">
+          {error ? (
+            <div className="animate-landing-fade border-destructive/25 bg-destructive/5 flex flex-col items-start gap-4 rounded-3xl border p-6 sm:p-8">
+              <span
+                className="bg-destructive/10 text-destructive flex size-12 items-center justify-center rounded-full"
+                aria-hidden="true"
               >
-                <ArrowLeft className="size-4" aria-hidden="true" />
-                Back to my meetings
-              </Link>
+                <WarningIcon className="size-6" />
+              </span>
+              <div className="flex flex-col gap-2">
+                <h1 className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
+                  We could not open this meeting
+                </h1>
+                <p role="alert" className="text-muted-foreground max-w-md text-sm text-pretty">
+                  {error}
+                </p>
+              </div>
+              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+                <Button
+                  variant="outline"
+                  className={`${SMALL_BUTTON} h-12 sm:h-10`}
+                  onClick={() => setRetry((value) => value + 1)}
+                >
+                  <ArrowClockwiseIcon aria-hidden="true" />
+                  Try again
+                </Button>
+                <Button variant="ghost" className={`${SMALL_BUTTON} h-12 sm:h-10`} asChild>
+                  <Link href="/meetings/history">
+                    <ArrowLeftIcon aria-hidden="true" />
+                    Back to my meetings
+                  </Link>
+                </Button>
+              </div>
             </div>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-6" aria-live="polite" aria-busy="true">
-            <span className="sr-only">Loading your meeting</span>
-            <Skeleton className="h-4 w-28 rounded-full" />
-            <Skeleton className="h-11 w-3/4 rounded-xl" />
-            <Skeleton className="h-4 w-56 rounded-full" />
-            <Skeleton className="h-72 w-full rounded-2xl" />
-          </div>
-        )}
+          ) : (
+            // Mirrors the loaded layout: back link, header, action pills, then the summary card.
+            <div role="status" className="flex flex-col gap-6" aria-live="polite" aria-busy="true">
+              <span className="sr-only">Loading your meeting</span>
+              <Skeleton className="h-4 w-28 rounded-full" />
+              <div className="flex flex-col gap-4">
+                <Skeleton className="h-4 w-24 rounded-full" />
+                <Skeleton className="h-10 w-3/4 rounded-lg" />
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-5 w-20 rounded-full" />
+                  <Skeleton className="h-3 w-32 rounded-full" />
+                </div>
+                <div className="flex gap-2 pt-2">
+                  {[0, 1, 2].map((n) => (
+                    <Skeleton
+                      key={n}
+                      className="h-12 flex-1 rounded-full sm:h-10 sm:w-28 sm:flex-none"
+                    />
+                  ))}
+                </div>
+              </div>
+              <div className={`${CARD} mt-8 flex flex-col gap-3 p-6 sm:p-10`}>
+                <Skeleton className="h-4 w-24 rounded-full" />
+                <Skeleton className="mb-4 h-8 w-1/2 rounded-lg" />
+                {["w-full", "w-11/12", "w-full", "w-4/5", "w-2/3"].map((width, n) => (
+                  <Skeleton key={n} className={`h-4 rounded-full ${width}`} />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     );
   const { meeting, chunks, segments } = detail;
@@ -446,62 +501,78 @@ export function MeetingDetailView({ id }: { id: string }) {
     </span>
   );
   return (
-    <div className="glow-bg">
-      <div className="mx-auto max-w-4xl px-4 py-10 sm:py-16">
+    <div className="landing">
+      <div className="mx-auto max-w-3xl px-4 pt-10 pb-20 sm:px-6 sm:pt-12 sm:pb-24">
         <Link
           href="/meetings/history"
-          className="text-muted-foreground hover:text-foreground group mb-10 inline-flex items-center gap-2 text-sm transition-colors"
+          className="group text-muted-foreground ease-fluid hover:text-foreground focus-visible:ring-ring/50 -mx-3 inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold transition-colors duration-300 focus-visible:ring-[3px] focus-visible:outline-none"
         >
-          <ArrowLeft
-            className="size-4 transition-transform group-hover:-translate-x-0.5"
+          <ArrowLeftIcon
+            className="ease-fluid size-4 transition-transform duration-300 group-hover:-translate-x-0.5"
             aria-hidden="true"
           />
           My meetings
         </Link>
 
-        <header className="animate-fade-up mb-10 flex flex-col gap-5">
+        <header className="animate-landing-rise mt-6 flex flex-col gap-4">
+          <p className={LABEL}>Meeting notes</p>
           {editing ? (
-            <form
-              className="animate-scale-in border-border bg-card flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void saveTitle();
-              }}
-            >
-              <label htmlFor="meeting-title" className="sr-only">
-                Meeting title
-              </label>
-              <Input
-                id="meeting-title"
-                autoFocus
-                maxLength={160}
-                required
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                className="font-display h-11 min-w-0 flex-1 border-0 bg-transparent text-2xl shadow-none focus-visible:ring-0"
-                placeholder="Name this meeting"
-              />
-              <div className="flex shrink-0 items-center gap-2">
-                <Button
-                  disabled={saving || !title.trim()}
-                  type="submit"
-                  size="icon"
-                  aria-label="Save title"
-                >
-                  {saving ? <Loader2 className="animate-spin" /> : <Check />}
-                </Button>
-                <Button type="button" variant="ghost" onClick={() => setEditing(false)}>
-                  Cancel
-                </Button>
-              </div>
-            </form>
+            <>
+              {/* Keeps the page's single h1 while the visible title is being edited. */}
+              <h1 className="sr-only">{meeting.title}</h1>
+              <form
+                className={`${CARD} animate-landing-fade flex flex-col gap-3 p-3 sm:flex-row sm:items-center`}
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void saveTitle();
+                }}
+              >
+                <label htmlFor="meeting-title" className="sr-only">
+                  Meeting title
+                </label>
+                {/* Outer 24px radius, 12px padding: the field takes 12px. */}
+                <Input
+                  id="meeting-title"
+                  autoFocus
+                  maxLength={160}
+                  required
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  className="bg-band dark:bg-band h-14 min-w-0 flex-1 rounded-xl border-0 px-4 text-xl font-semibold shadow-none md:text-xl"
+                  placeholder="Name this meeting"
+                />
+                <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex sm:items-center">
+                  <Button
+                    disabled={saving || !title.trim()}
+                    type="submit"
+                    className={`${SMALL_BUTTON} h-12`}
+                  >
+                    {saving ? (
+                      <CircleNotchIcon className="animate-spin" aria-hidden="true" />
+                    ) : (
+                      <CheckIcon aria-hidden="true" />
+                    )}
+                    Save<span className="sr-only"> title</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className={`${SMALL_BUTTON} h-12`}
+                    onClick={() => setEditing(false)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </>
           ) : (
-            <h1 className="font-display min-w-0 text-4xl leading-[1.1] break-words sm:text-5xl">
+            <h1 className="min-w-0 text-4xl font-semibold tracking-tight text-balance break-words sm:text-5xl">
               {meeting.title}
             </h1>
           )}
 
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-3">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            {/* Status pairs an icon (or dot) with text, never color alone. */}
             <Badge
               variant={
                 meeting.status === "error"
@@ -511,8 +582,19 @@ export function MeetingDetailView({ id }: { id: string }) {
                     : "secondary"
               }
             >
-              {meeting.status === "processing" && (
-                <Loader2 className="animate-spin" aria-hidden="true" />
+              {meeting.status === "processing" ? (
+                <CircleNotchIcon className="animate-spin" aria-hidden="true" />
+              ) : meeting.status === "ready" ? (
+                <CheckCircleIcon weight="fill" aria-hidden="true" />
+              ) : meeting.status === "review" ? (
+                <SparkleIcon aria-hidden="true" />
+              ) : meeting.status === "recording" ? (
+                <span
+                  className="bg-muted-foreground size-1.5 shrink-0 rounded-full"
+                  aria-hidden="true"
+                />
+              ) : (
+                <WarningIcon aria-hidden="true" />
               )}
               {meeting.status === "ready"
                 ? "Ready"
@@ -524,7 +606,7 @@ export function MeetingDetailView({ id }: { id: string }) {
                       ? "Ready to process"
                       : "Needs attention"}
             </Badge>
-            <p className="text-muted-foreground flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs">
+            <p className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
               <time dateTime={meeting.createdAt} className="font-mono tabular-nums">
                 {new Date(meeting.createdAt).toLocaleDateString(undefined, {
                   month: "short",
@@ -541,533 +623,642 @@ export function MeetingDetailView({ id }: { id: string }) {
                 </>
               )}
             </p>
-            <div className="ml-auto flex shrink-0 items-center gap-1">
-              {!editing && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Edit meeting title"
-                  onClick={() => {
-                    setTitle(meeting.title);
-                    setEditing(true);
-                  }}
-                >
-                  <Pencil />
-                </Button>
-              )}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" aria-label="Share & export">
-                    <Share2 />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="rounded-xl p-1.5">
-                  <DropdownMenuItem
-                    className="rounded-lg px-2 py-2"
-                    onSelect={() => setShareDialogOpen(true)}
-                  >
-                    <Globe aria-hidden="true" />
-                    Share link
-                  </DropdownMenuItem>
-                  {summary && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        className="rounded-lg px-2 py-2"
-                        onSelect={() => void copySummary()}
-                      >
-                        <Copy aria-hidden="true" />
-                        Copy for Notion / Docs
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="rounded-lg px-2 py-2"
-                        disabled={exporting}
-                        onSelect={() => void downloadWord(false)}
-                      >
-                        <FileDown aria-hidden="true" />
-                        Download Word — summary
-                      </DropdownMenuItem>
-                      {segments.length > 0 && (
-                        <DropdownMenuItem
-                          className="rounded-lg px-2 py-2"
-                          disabled={exporting}
-                          onSelect={() => void downloadWord(true)}
-                        >
-                          <FileDown aria-hidden="true" />
-                          Download Word — summary + transcript
-                        </DropdownMenuItem>
-                      )}
-                      {isAdmin && meeting.status === "ready" && (
-                        <DropdownMenuItem
-                          className="rounded-lg px-2 py-2"
-                          onSelect={() => setNotionOpen(true)}
-                        >
-                          <Send aria-hidden="true" />
-                          Send to Notion
-                        </DropdownMenuItem>
-                      )}
-                    </>
-                  )}
-                  {localAudio && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        className="rounded-lg px-2 py-2"
-                        disabled={audioExporting}
-                        onSelect={() => void downloadAudio()}
-                      >
-                        <Download aria-hidden="true" />
-                        Download audio (WAV)
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Share this meeting</DialogTitle>
-                    <DialogDescription>
-                      Anyone with the link can view the sections you choose, without signing in.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="border-border flex items-center gap-3 rounded-xl border px-4 py-3">
-                    <span
-                      className={`flex size-9 shrink-0 items-center justify-center rounded-full ${meeting.shareToken ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}
-                      aria-hidden="true"
-                    >
-                      {meeting.shareToken ? (
-                        <Globe className="size-4" />
-                      ) : (
-                        <Lock className="size-4" />
-                      )}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium">
-                        {meeting.shareToken ? "Anyone with the link" : "Only you"}
-                      </p>
-                      <p className="text-muted-foreground text-xs">
-                        {meeting.shareToken
-                          ? "Can view the sections below."
-                          : "This meeting is private."}
-                      </p>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant={meeting.shareToken ? "outline" : "default"}
-                      disabled={shareSaving}
-                      onClick={() => void share({ enabled: !meeting.shareToken })}
-                    >
-                      {shareSaving && <Loader2 className="animate-spin" aria-hidden="true" />}
-                      {meeting.shareToken ? "Stop sharing" : "Create link"}
-                    </Button>
-                  </div>
-                  {shareUrl && (
-                    <div className="animate-fade-in flex flex-col gap-5">
-                      <div className="flex gap-2">
-                        <Input
-                          readOnly
-                          value={shareUrl}
-                          aria-label="Share link"
-                          onFocus={(event) => event.target.select()}
-                          className="min-w-0 flex-1 font-mono text-xs"
-                        />
-                        <Button variant="outline" onClick={copyShareUrl}>
-                          <Copy />
-                          Copy
-                        </Button>
-                      </div>
-                      <fieldset className="flex flex-col gap-2.5" disabled={shareSaving}>
-                        <legend className="eyebrow mb-3">Shared sections</legend>
-                        {(
-                          [
-                            ["summary", "shareSummary", "AI summary"],
-                            ["transcript", "shareTranscript", "Transcript"],
-                          ] as const
-                        ).map(([key, field, label]) => (
-                          <label
-                            key={key}
-                            className="flex cursor-pointer items-center gap-2.5 text-sm"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={meeting[field]}
-                              onChange={(event) => void share({ [key]: event.target.checked })}
-                              className="accent-primary size-4 cursor-pointer"
-                            />
-                            {label}
-                          </label>
-                        ))}
-                      </fieldset>
-                      <div className="flex flex-col items-start gap-1">
-                        <Button
-                          variant="link"
-                          className="h-auto px-0"
-                          disabled={shareSaving}
-                          onClick={() => void share({ regenerate: true })}
-                        >
-                          <RotateCcw />
-                          Regenerate link
-                        </Button>
-                        <p className="text-muted-foreground text-xs">
-                          The current link stops working for everyone who has it.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </DialogContent>
-              </Dialog>
-              {isAdmin && (
-                <NotionDialog
-                  meeting={meeting}
-                  open={notionOpen}
-                  onOpenChange={setNotionOpen}
-                  onSent={(notionPageUrl) => {
-                    setNotionOpen(false);
-                    setDetail((current) =>
-                      current ? { ...current, meeting: { ...current.meeting, notionPageUrl } } : current
-                    );
-                  }}
-                />
-              )}
-              <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-                <DialogTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Delete meeting"
-                    disabled={processing}
-                  >
-                    <Trash2 />
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Delete this meeting?</DialogTitle>
-                    <DialogDescription>
-                      This permanently deletes the summary, the transcript, and any audio still on our
-                      servers or in this browser. This cannot be undone.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <DialogFooter>
-                    <Button
-                      variant="outline"
-                      onClick={() => setDeleteOpen(false)}
-                      disabled={deleting}
-                    >
-                      Keep meeting
-                    </Button>
-                    <Button variant="destructive" onClick={remove} disabled={deleting}>
-                      {deleting ? "Deleting..." : "Delete meeting"}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </div>
           </div>
-          <div className="rule-fade h-px" />
-        </header>
 
-        {(processing || meeting.status === "processing") && (
-          <section
-            role="status"
-            aria-busy="true"
-            className="border-border bg-card animate-fade-up mb-10 rounded-2xl border p-6 sm:p-7"
-          >
-            <h2 className="font-display flex items-center gap-2.5 text-2xl">
-              <span
-                className="bg-primary/70 size-2 shrink-0 animate-pulse rounded-full"
-                aria-hidden="true"
-              />
-              {transcribed
-                ? "Writing your summary"
-                : archiving
-                  ? "Saving audio to OneDrive"
-                  : "Transcribing the recording"}
-            </h2>
-            {/* No estimate while archiving: the transcription estimate starts once the audio is saved. */}
-            {!archiving && (
-              <>
-                <ProcessingProgress
-                  key={String(transcribed)}
-                  audioSeconds={
-                    meeting.durationSeconds ||
-                    chunks.reduce((sum, chunk) => sum + chunk.durationSeconds, 0)
-                  }
-                  transcribed={transcribed}
-                />
-                <p className="text-muted-foreground mt-2 text-xs">
-                  Estimated from the recording length.
-                </p>
-              </>
+          {/* Labelled pills, full width thirds on phones so every action is an easy thumb target. */}
+          <div className="flex items-center gap-2 pt-2">
+            {!editing && (
+              <Button
+                variant="outline"
+                className={HEADER_ACTION}
+                onClick={() => {
+                  setTitle(meeting.title);
+                  setEditing(true);
+                }}
+              >
+                <PencilSimpleIcon aria-hidden="true" />
+                Rename<span className="sr-only"> meeting</span>
+              </Button>
             )}
-            <p className="text-muted-foreground mt-4 max-w-prose text-sm leading-6">
-              {transcribed
-                ? "The transcript is ready."
-                : archiving
-                  ? "Your recording is saved to OneDrive first, then transcribed."
-                  : "The whole recording is transcribed at once; longer recordings take longer."}{" "}
-              Keep this page open to continue; reopen it any time to resume where it left off.
-            </p>
-          </section>
-        )}
-
-        {(error || meeting.status === "error") && (
-          <div
-            role="alert"
-            className="border-destructive/25 bg-destructive/8 animate-fade-up mb-10 flex flex-wrap items-center justify-between gap-4 rounded-2xl border p-6"
-          >
-            <p className="text-destructive flex max-w-xl items-start gap-3 text-sm leading-6">
-              <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-              {error ||
-                meeting.error ||
-                "We could not finish your notes. Try again to pick up where it stopped."}
-            </p>
-            <Button
-              variant="outline"
-              disabled={processing}
-              onClick={() => setRetry((value) => value + 1)}
-            >
-              <RotateCcw />
-              Try again
-            </Button>
-          </div>
-        )}
-
-        {meeting.status === "recording" && (
-          <section className="border-border bg-card animate-fade-up mb-10 flex flex-col items-start gap-4 rounded-2xl border p-6 sm:p-7">
-            <p className="eyebrow">Unfinished</p>
-            <h2 className="font-display text-2xl">Finish a saved recording</h2>
-            <p className="text-muted-foreground max-w-prose text-sm leading-6">
-              If recording is still open in another tab, finish it there. If it was interrupted, you
-              can prepare notes from the {chunks.length} uploaded audio{" "}
-              {chunks.length === 1 ? "part" : "parts"}. Unsaved audio cannot be recovered here.
-            </p>
-            <Button disabled={saving || chunks.length === 0} onClick={recover}>
-              Finish saved recording
-            </Button>
-          </section>
-        )}
-
-        {meeting.status === "review" && (
-          <section
-            aria-labelledby="review-heading"
-            className="border-border bg-card animate-fade-up mb-10 rounded-2xl border p-6 sm:p-7"
-          >
-            <p className="eyebrow mb-2">Before processing</p>
-            <h2 id="review-heading" className="font-display text-2xl">
-              Anything the AI should know?
-            </h2>
-            <p className="text-muted-foreground mt-3 max-w-prose text-sm leading-6">
-              Your recording is uploaded; our copy is deleted once it is transcribed. Optionally
-              tell the AI what to focus on, who was there, or
-              which questions the summary should answer. It only uses what was actually said.
-            </p>
-            <form
-              className="mt-5 flex flex-col gap-3"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void startProcessing();
-              }}
-            >
-              <label htmlFor="ai-context" className="text-sm font-medium">
-                Notes for the AI — focus, context, questions to answer{" "}
-                <span className="text-muted-foreground font-normal">(optional)</span>
-              </label>
-              <Textarea
-                id="ai-context"
-                rows={4}
-                maxLength={2000}
-                value={aiContext}
-                onChange={(event) => setAiContext(event.target.value)}
-                aria-describedby="ai-context-count"
-                className="min-h-28 rounded-lg"
-                placeholder={
-                  "e.g. Focus on the budget decisions.\nWho owns the launch checklist?\nAna is the client; Tom leads engineering."
-                }
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className={HEADER_ACTION}>
+                  <ShareNetworkIcon aria-hidden="true" />
+                  Share<span className="sr-only"> and export</span>
+                </Button>
+              </DropdownMenuTrigger>
+              {/* Portaled outside .landing, so landing-island brings the landing tokens along. */}
+              <DropdownMenuContent align="start" className="landing-island min-w-60 rounded-xl p-1">
+                <DropdownMenuItem className={MENU_ITEM} onSelect={() => setShareDialogOpen(true)}>
+                  <GlobeIcon aria-hidden="true" />
+                  Share link
+                </DropdownMenuItem>
+                {summary && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem className={MENU_ITEM} onSelect={() => void copySummary()}>
+                      <CopyIcon aria-hidden="true" />
+                      Copy for Notion or Docs
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className={MENU_ITEM}
+                      disabled={exporting}
+                      onSelect={() => void downloadWord(false)}
+                    >
+                      <FileDocIcon aria-hidden="true" />
+                      Download Word: summary
+                    </DropdownMenuItem>
+                    {segments.length > 0 && (
+                      <DropdownMenuItem
+                        className={MENU_ITEM}
+                        disabled={exporting}
+                        onSelect={() => void downloadWord(true)}
+                      >
+                        <FileDocIcon aria-hidden="true" />
+                        Download Word: summary and transcript
+                      </DropdownMenuItem>
+                    )}
+                    {isAdmin && meeting.status === "ready" && (
+                      <DropdownMenuItem className={MENU_ITEM} onSelect={() => setNotionOpen(true)}>
+                        <PaperPlaneTiltIcon aria-hidden="true" />
+                        Send to Notion
+                      </DropdownMenuItem>
+                    )}
+                  </>
+                )}
+                {localAudio && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className={MENU_ITEM}
+                      disabled={audioExporting}
+                      onSelect={() => void downloadAudio()}
+                    >
+                      <DownloadSimpleIcon aria-hidden="true" />
+                      Download audio (WAV)
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
+              <DialogContent className={DIALOG}>
+                <DialogHeader className="text-left">
+                  <DialogTitle>Share this meeting</DialogTitle>
+                  <DialogDescription className="text-pretty">
+                    Anyone with the link can view the sections you choose, without signing in.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="bg-band flex flex-wrap items-center gap-3 rounded-xl px-4 py-3">
+                  <span
+                    className={`flex size-10 shrink-0 items-center justify-center rounded-full ${meeting.shareToken ? "bg-primary/10 text-primary" : "bg-card text-muted-foreground border"}`}
+                    aria-hidden="true"
+                  >
+                    {meeting.shareToken ? (
+                      <GlobeIcon className="size-5" />
+                    ) : (
+                      <LockIcon className="size-5" />
+                    )}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold">
+                      {meeting.shareToken ? "Anyone with the link" : "Only you"}
+                    </p>
+                    <p className="text-muted-foreground text-xs">
+                      {meeting.shareToken
+                        ? "Can view the sections below."
+                        : "This meeting is private."}
+                    </p>
+                  </div>
+                  <Button
+                    variant={meeting.shareToken ? "outline" : "default"}
+                    disabled={shareSaving}
+                    className={`${SMALL_BUTTON} h-11 w-full sm:h-10 sm:w-auto`}
+                    onClick={() => void share({ enabled: !meeting.shareToken })}
+                  >
+                    {shareSaving && <CircleNotchIcon className="animate-spin" aria-hidden="true" />}
+                    {meeting.shareToken ? "Stop sharing" : "Create link"}
+                  </Button>
+                </div>
+                {shareUrl && (
+                  <div className="animate-landing-fade flex flex-col gap-6">
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Input
+                        readOnly
+                        value={shareUrl}
+                        aria-label="Share link"
+                        onFocus={(event) => event.target.select()}
+                        className="h-11 min-w-0 flex-1 rounded-lg font-mono text-xs md:text-xs"
+                      />
+                      <Button
+                        variant="outline"
+                        className={`${SMALL_BUTTON} h-11`}
+                        onClick={copyShareUrl}
+                      >
+                        <CopyIcon aria-hidden="true" />
+                        Copy
+                      </Button>
+                    </div>
+                    <fieldset className="flex flex-col gap-2" disabled={shareSaving}>
+                      <legend className="mb-3 text-sm font-semibold">Shared sections</legend>
+                      {(
+                        [
+                          ["summary", "shareSummary", "AI summary"],
+                          ["transcript", "shareTranscript", "Transcript"],
+                        ] as const
+                      ).map(([key, field, label]) => (
+                        <label
+                          key={key}
+                          className="bg-band ease-fluid has-[:checked]:border-primary/30 has-[:focus-visible]:ring-ring/50 flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border border-transparent px-4 text-sm font-semibold transition-colors duration-300 has-[:focus-visible]:ring-[3px]"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={meeting[field]}
+                            onChange={(event) => void share({ [key]: event.target.checked })}
+                            className="accent-primary size-4 cursor-pointer"
+                          />
+                          {label}
+                        </label>
+                      ))}
+                    </fieldset>
+                    <div className="flex flex-col items-start gap-1">
+                      <Button
+                        variant="link"
+                        className="h-auto px-0 font-semibold"
+                        disabled={shareSaving}
+                        onClick={() => void share({ regenerate: true })}
+                      >
+                        <ArrowClockwiseIcon aria-hidden="true" />
+                        Regenerate link
+                      </Button>
+                      <p className="text-muted-foreground text-xs text-pretty">
+                        The current link stops working for everyone who has it.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
+            {isAdmin && (
+              <NotionDialog
+                meeting={meeting}
+                open={notionOpen}
+                onOpenChange={setNotionOpen}
+                onSent={(notionPageUrl) => {
+                  setNotionOpen(false);
+                  setDetail((current) =>
+                    current
+                      ? { ...current, meeting: { ...current.meeting, notionPageUrl } }
+                      : current
+                  );
+                }}
               />
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <span
-                  id="ai-context-count"
-                  className="text-muted-foreground font-mono text-xs tabular-nums"
-                >
-                  {aiContext.length}/2000
-                </span>
-                <Button type="submit" disabled={saving}>
-                  {saving && <Loader2 className="animate-spin" aria-hidden="true" />}
-                  Process meeting
-                </Button>
-              </div>
-            </form>
-          </section>
-        )}
-
-        <section
-          className="border-border bg-card animate-fade-up mb-12 rounded-2xl border p-6 sm:p-10"
-          aria-labelledby="summary-heading"
-        >
-          <div className="mb-7 flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <p className="eyebrow mb-2">The takeaway</p>
-              <h2 id="summary-heading" className="font-display text-3xl">
-                Meeting summary
-              </h2>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {isAdmin && meeting.notionPageUrl && (
-                <Button variant="outline" size="sm" asChild>
-                  <a href={meeting.notionPageUrl} target="_blank" rel="noopener noreferrer">
-                    <ArrowUpRight aria-hidden="true" />
-                    Open in Notion
-                  </a>
-                </Button>
-              )}
-              {isAdmin && meeting.status === "ready" && (
+            )}
+            <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+              <DialogTrigger asChild>
                 <Button
                   variant="outline"
-                  size="sm"
-                  onClick={resummarize}
-                  disabled={saving || processing}
+                  className={`${HEADER_ACTION} hover:text-destructive dark:hover:text-destructive`}
+                  disabled={processing}
                 >
-                  {saving ? (
-                    <Loader2 className="animate-spin" aria-hidden="true" />
-                  ) : (
-                    <RotateCcw aria-hidden="true" />
-                  )}
-                  Regenerate summary
+                  <TrashIcon aria-hidden="true" />
+                  Delete<span className="sr-only"> meeting</span>
                 </Button>
-              )}
-            </div>
-          </div>
-          {summary ? (
-            <SummaryProse ref={summaryRef} summary={summary} />
-          ) : (
-            <p className="text-muted-foreground max-w-prose text-sm leading-6">
-              Your summary will appear here once the recording has been transcribed.
-            </p>
-          )}
-        </section>
-
-        <p className="text-muted-foreground mb-4 text-sm leading-6">
-          <span className={meeting.hasAudio ? "text-success" : undefined}>{archiveAudioStatus(meeting.hasAudio)}.</span>
-          {!meeting.hasAudio ? " Uploaded or processed audio is not proof of a OneDrive backup. Keep or export your phone copy until the archive is confirmed." : null}
-        </p>
-        {meeting.hasAudio && <AudioPlayer ref={player} src={`${endpoint}/audio`} />}
-
-        {labels.length > 0 && meeting.status !== "recording" && (
-          <section
-            className="animate-fade-up mb-8 flex flex-col gap-3"
-            aria-labelledby="speakers-heading"
-          >
-            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <h2 id="speakers-heading" className="font-display text-2xl">
-                Speakers
-              </h2>
-              <span className="text-muted-foreground text-xs">
-                Names apply to the summary and transcript.
-              </span>
-            </div>
-            <ul className="border-border/70 divide-y border-y">
-              {labels.map((label, index) => {
-                const name = meeting.speakerNames[label];
-                const suggestion = !name && meeting.speakerSuggestions[label];
-                return (
-                  <li
-                    key={label}
-                    className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-2 py-2"
+              </DialogTrigger>
+              <DialogContent className={DIALOG}>
+                <DialogHeader className="text-left">
+                  <DialogTitle>Delete this meeting?</DialogTitle>
+                  <DialogDescription className="text-pretty">
+                    This permanently deletes the summary, the transcript, and any audio still on our
+                    servers or in this browser. This cannot be undone.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter className="gap-2">
+                  <Button
+                    variant="outline"
+                    className={`${SMALL_BUTTON} h-12 sm:h-10`}
+                    onClick={() => setDeleteOpen(false)}
+                    disabled={deleting}
                   >
-                    {speaker === label ? (
-                      <form
-                        className="animate-scale-in flex min-w-0 flex-1 items-center gap-2"
-                        onSubmit={(event) => {
-                          event.preventDefault();
-                          void saveSpeaker(label, speakerName);
-                        }}
-                      >
-                        <label htmlFor={`speaker-${index}`} className="sr-only">
-                          Name for {label}
-                        </label>
-                        <Input
-                          id={`speaker-${index}`}
-                          autoFocus
-                          maxLength={60}
-                          value={speakerName}
-                          onChange={(event) => setSpeakerName(event.target.value)}
-                          placeholder={label}
-                          className="h-9 min-w-0 flex-1"
-                        />
-                        <Button
-                          type="submit"
-                          size="icon"
-                          disabled={speakerSaving}
-                          aria-label={
-                            speakerName.trim()
-                              ? `Save name for ${label}`
-                              : `Clear name for ${label}`
-                          }
-                        >
-                          {speakerSaving ? <Loader2 className="animate-spin" /> : <Check />}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setSpeaker(null)}
-                        >
-                          Cancel
-                        </Button>
-                      </form>
-                    ) : (
-                      <>
-                        <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2.5">
-                          <span className="truncate text-sm font-medium">{name || label}</span>
-                          {name && (
-                            <span className="text-muted-foreground text-[0.6875rem] tracking-[0.12em] uppercase">
-                              {label}
-                            </span>
-                          )}
-                        </div>
-                        {suggestion && (
-                          <span className="text-muted-foreground flex items-center gap-2 text-xs">
-                            Suggested
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={speakerSaving}
-                              onClick={() => void saveSpeaker(label, suggestion)}
-                              aria-label={`Name ${label} ${suggestion}`}
-                            >
-                              <Check />
-                              {suggestion}
-                            </Button>
-                          </span>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`Rename ${label}`}
-                          onClick={() => {
-                            setSpeakerName(name ?? "");
-                            setSpeaker(label);
-                          }}
-                        >
-                          <Pencil />
-                        </Button>
-                      </>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
+                    Keep meeting
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    className={`${SMALL_BUTTON} h-12 sm:h-10`}
+                    onClick={remove}
+                    disabled={deleting}
+                  >
+                    {deleting ? "Deleting..." : "Delete meeting"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </header>
+
+        {/* Compact section switcher: sticks under the site header so long transcripts stay easy to
+            move around on phones. Plain anchors, so it works without JS. */}
+        {(summary || segments.length > 0) && (
+          <div className="animate-landing-rise pointer-events-none sticky top-[calc(var(--sticky-top)+0.5rem)] z-30 mt-8 flex justify-center [animation-delay:80ms]">
+            <nav
+              aria-label="Meeting sections"
+              className="bg-background/70 border-foreground/10 pointer-events-auto flex max-w-full gap-1 overflow-x-auto rounded-full border p-1 shadow-[0_8px_24px_-16px_color-mix(in_oklch,var(--foreground)_45%,transparent)] backdrop-blur-xl"
+            >
+              {(
+                [
+                  ["summary", "Summary", ArticleIcon, true],
+                  ["recording", "Audio", WaveformIcon, meeting.hasAudio],
+                  [
+                    "speakers",
+                    "Speakers",
+                    UsersIcon,
+                    labels.length > 0 && meeting.status !== "recording",
+                  ],
+                  ["transcript", "Transcript", TextAlignLeftIcon, true],
+                ] as const
+              )
+                .filter(([, , , shown]) => shown)
+                .map(([anchor, label, SectionIcon]) => (
+                  <a
+                    key={anchor}
+                    href={`#${anchor}`}
+                    className="text-muted-foreground ease-fluid hover:bg-accent hover:text-foreground focus-visible:ring-ring/50 inline-flex shrink-0 items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold transition-[background-color,color,scale] duration-300 focus-visible:ring-[3px] focus-visible:outline-none active:scale-[0.98]"
+                  >
+                    <SectionIcon className="hidden size-4 shrink-0 sm:block" aria-hidden="true" />
+                    {label}
+                  </a>
+                ))}
+            </nav>
+          </div>
         )}
 
-        <TranscriptList
-          segments={segments}
-          speakerNames={meeting.speakerNames}
-          onSeek={meeting.hasAudio ? (seconds) => player.current?.seek(seconds) : undefined}
-          note="Speaker labels distinguish voices across the whole recording; rename speakers above to show their names. Older meetings may label speakers per audio part."
-        />
+        <div className="mt-6 flex flex-col gap-6">
+          {(processing || meeting.status === "processing") && (
+            <section
+              role="status"
+              aria-busy="true"
+              className={`${CARD} animate-landing-rise p-3 [animation-delay:120ms]`}
+            >
+              {/* Outer 24px radius, 12px padding: 12px well, tinted like the recorder while saving. */}
+              <div className="bg-primary/8 rounded-xl px-4 py-6 sm:px-6">
+                <h2 className="flex items-center gap-3 text-2xl font-semibold tracking-tight text-balance">
+                  <CircleNotchIcon
+                    className="text-primary size-5 shrink-0 animate-spin"
+                    aria-hidden="true"
+                  />
+                  {transcribed
+                    ? "Writing your summary"
+                    : archiving
+                      ? "Saving audio to OneDrive"
+                      : "Transcribing the recording"}
+                </h2>
+                {/* No estimate while archiving: the transcription estimate starts once the audio is saved. */}
+                {!archiving && (
+                  <>
+                    <ProcessingProgress
+                      key={String(transcribed)}
+                      audioSeconds={
+                        meeting.durationSeconds ||
+                        chunks.reduce((sum, chunk) => sum + chunk.durationSeconds, 0)
+                      }
+                      transcribed={transcribed}
+                    />
+                    <p className="text-muted-foreground mt-2 text-xs">
+                      Estimated from the recording length.
+                    </p>
+                  </>
+                )}
+                <p className="text-muted-foreground mt-4 max-w-prose text-sm text-pretty">
+                  {transcribed
+                    ? "The transcript is ready."
+                    : archiving
+                      ? "Your recording is saved to OneDrive first, then transcribed."
+                      : "The whole recording is transcribed at once; longer recordings take longer."}{" "}
+                  Keep this page open to continue; reopen it any time to resume where it left off.
+                </p>
+              </div>
+            </section>
+          )}
+
+          {(error || meeting.status === "error") && (
+            <div
+              role="alert"
+              className="animate-landing-fade border-destructive/25 bg-destructive/5 flex flex-col items-start gap-4 rounded-3xl border p-6 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <p className="text-destructive flex max-w-xl items-start gap-2 text-sm text-pretty">
+                <WarningIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                {error ||
+                  meeting.error ||
+                  "We could not finish your notes. Try again to pick up where it stopped."}
+              </p>
+              <Button
+                variant="outline"
+                className={`${SMALL_BUTTON} h-12 w-full shrink-0 sm:h-10 sm:w-auto`}
+                disabled={processing}
+                onClick={() => setRetry((value) => value + 1)}
+              >
+                <ArrowClockwiseIcon aria-hidden="true" />
+                Try again
+              </Button>
+            </div>
+          )}
+
+          {meeting.status === "recording" && (
+            <section className={`${CARD} animate-landing-rise p-6 [animation-delay:120ms] sm:p-8`}>
+              <p className={LABEL}>Unfinished</p>
+              <h2 className={`${SECTION_HEADING} mt-2`}>Finish a saved recording</h2>
+              <p className="text-muted-foreground mt-2 max-w-prose text-sm text-pretty">
+                If recording is still open in another tab, finish it there. If it was interrupted,
+                you can prepare notes from the {chunks.length} uploaded audio{" "}
+                {chunks.length === 1 ? "part" : "parts"}. Unsaved audio cannot be recovered here.
+              </p>
+              <Button
+                className={`${MAIN_BUTTON} mt-6`}
+                disabled={saving || chunks.length === 0}
+                onClick={recover}
+              >
+                <UploadSimpleIcon aria-hidden="true" />
+                Finish saved recording
+              </Button>
+            </section>
+          )}
+
+          {meeting.status === "review" && (
+            <section
+              aria-labelledby="review-heading"
+              className={`${CARD} animate-landing-rise p-6 [animation-delay:120ms] sm:p-8`}
+            >
+              <p className={LABEL}>Before processing</p>
+              <h2 id="review-heading" className={`${SECTION_HEADING} mt-2`}>
+                Anything the AI should know?
+              </h2>
+              <p className="text-muted-foreground mt-2 max-w-prose text-sm text-pretty">
+                Your recording is uploaded; our copy is deleted once it is transcribed. Optionally
+                tell the AI what to focus on, who was there, or which questions the summary should
+                answer. It only uses what was actually said.
+              </p>
+              <form
+                className="mt-6 flex flex-col gap-3"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void startProcessing();
+                }}
+              >
+                <label htmlFor="ai-context" className="text-sm font-semibold">
+                  Notes for the AI: focus, context, questions to answer{" "}
+                  <span className="text-muted-foreground font-normal">(optional)</span>
+                </label>
+                <Textarea
+                  id="ai-context"
+                  rows={4}
+                  maxLength={2000}
+                  value={aiContext}
+                  onChange={(event) => setAiContext(event.target.value)}
+                  aria-describedby="ai-context-count"
+                  className="bg-band dark:bg-band min-h-32 rounded-xl px-4 py-3"
+                  placeholder={
+                    "e.g. Focus on the budget decisions.\nWho owns the launch checklist?\nAna is the client; Tom leads engineering."
+                  }
+                />
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <span
+                    id="ai-context-count"
+                    className="text-muted-foreground font-mono text-xs tabular-nums"
+                  >
+                    {aiContext.length}/2000
+                  </span>
+                  <Button type="submit" disabled={saving} className={MAIN_BUTTON}>
+                    {saving ? (
+                      <CircleNotchIcon className="animate-spin" aria-hidden="true" />
+                    ) : (
+                      <SparkleIcon weight="fill" aria-hidden="true" />
+                    )}
+                    Process meeting
+                  </Button>
+                </div>
+              </form>
+            </section>
+          )}
+
+          <section
+            id="summary"
+            className={`${CARD} ${ANCHOR} animate-landing-rise p-6 [animation-delay:120ms] sm:p-10`}
+            aria-labelledby="summary-heading"
+          >
+            <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div className="flex flex-col gap-2">
+                <p className={LABEL}>The takeaway</p>
+                <h2
+                  id="summary-heading"
+                  className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl"
+                >
+                  Meeting summary
+                </h2>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {isAdmin && meeting.notionPageUrl && (
+                  <Button variant="outline" size="sm" className={`${SMALL_BUTTON} h-10`} asChild>
+                    <a href={meeting.notionPageUrl} target="_blank" rel="noopener noreferrer">
+                      <ArrowUpRightIcon aria-hidden="true" />
+                      Open in Notion
+                    </a>
+                  </Button>
+                )}
+                {isAdmin && meeting.status === "ready" && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={`${SMALL_BUTTON} h-10`}
+                    onClick={resummarize}
+                    disabled={saving || processing}
+                  >
+                    {saving ? (
+                      <CircleNotchIcon className="animate-spin" aria-hidden="true" />
+                    ) : (
+                      <ArrowClockwiseIcon aria-hidden="true" />
+                    )}
+                    Regenerate summary
+                  </Button>
+                )}
+              </div>
+            </div>
+            {summary ? (
+              <SummaryProse ref={summaryRef} summary={summary} variant="landing" />
+            ) : (
+              <p className="bg-band text-muted-foreground rounded-xl px-4 py-6 text-sm text-pretty">
+                Your summary will appear here once the recording has been transcribed.
+              </p>
+            )}
+          </section>
+
+          <div
+            id="recording"
+            className={`${ANCHOR} animate-landing-rise flex flex-col gap-3 [animation-delay:160ms]`}
+          >
+            {/* Upload receipts and the OneDrive archive are separate facts (see docs/android.md). */}
+            <p className="bg-card text-muted-foreground flex items-start gap-3 rounded-xl border px-4 py-3 text-sm text-pretty shadow-xs">
+              {meeting.hasAudio ? (
+                <CloudCheckIcon
+                  weight="fill"
+                  className="text-success mt-0.5 size-4 shrink-0"
+                  aria-hidden="true"
+                />
+              ) : (
+                <CloudWarningIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+              )}
+              <span className="min-w-0 flex-1">
+                <span
+                  className={
+                    meeting.hasAudio
+                      ? "text-success font-semibold"
+                      : "text-foreground font-semibold"
+                  }
+                >
+                  {archiveAudioStatus(meeting.hasAudio)}.
+                </span>
+                {!meeting.hasAudio
+                  ? " Uploaded or processed audio is not proof of a OneDrive backup. Keep or export your phone copy until the archive is confirmed."
+                  : null}
+              </span>
+            </p>
+            {meeting.hasAudio && <AudioPlayer ref={player} src={`${endpoint}/audio`} />}
+          </div>
+
+          {labels.length > 0 && meeting.status !== "recording" && (
+            <section
+              id="speakers"
+              className={`${CARD} ${ANCHOR} animate-landing-rise p-3 [animation-delay:160ms]`}
+              aria-labelledby="speakers-heading"
+            >
+              <div className="flex flex-col gap-1 px-3 pt-3">
+                <div className="flex items-center gap-3">
+                  <UsersIcon className="text-primary size-5 shrink-0" aria-hidden="true" />
+                  <h2 id="speakers-heading" className={SECTION_HEADING}>
+                    Speakers
+                  </h2>
+                </div>
+                <p className="text-muted-foreground text-sm text-pretty">
+                  Names apply to the summary and transcript.
+                </p>
+              </div>
+              {/* Outer 24px radius, 12px padding: 12px rows. */}
+              <ul className="mt-4 flex flex-col gap-2">
+                {labels.map((label, index) => {
+                  const name = meeting.speakerNames[label];
+                  const suggestion = !name && meeting.speakerSuggestions[label];
+                  return (
+                    <li
+                      key={label}
+                      className="bg-band flex min-h-16 flex-wrap items-center gap-x-3 gap-y-2 rounded-xl px-3 py-3"
+                    >
+                      {speaker === label ? (
+                        <form
+                          className="animate-landing-fade flex min-w-0 flex-1 items-center gap-2"
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            void saveSpeaker(label, speakerName);
+                          }}
+                        >
+                          <label htmlFor={`speaker-${index}`} className="sr-only">
+                            Name for {label}
+                          </label>
+                          <Input
+                            id={`speaker-${index}`}
+                            autoFocus
+                            maxLength={60}
+                            value={speakerName}
+                            onChange={(event) => setSpeakerName(event.target.value)}
+                            placeholder={label}
+                            className="bg-card dark:bg-card h-11 min-w-0 flex-1 rounded-lg"
+                          />
+                          <Button
+                            type="submit"
+                            size="icon"
+                            className="ease-fluid size-11 rounded-full duration-300"
+                            disabled={speakerSaving}
+                            aria-label={
+                              speakerName.trim()
+                                ? `Save name for ${label}`
+                                : `Clear name for ${label}`
+                            }
+                          >
+                            {speakerSaving ? (
+                              <CircleNotchIcon className="animate-spin" aria-hidden="true" />
+                            ) : (
+                              <CheckIcon aria-hidden="true" />
+                            )}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className={`${SMALL_BUTTON} h-11 px-3`}
+                            onClick={() => setSpeaker(null)}
+                          >
+                            Cancel
+                          </Button>
+                        </form>
+                      ) : (
+                        <>
+                          <span
+                            className="bg-card text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-full border text-sm font-semibold"
+                            aria-hidden="true"
+                          >
+                            {(name || label).slice(0, 1).toUpperCase()}
+                          </span>
+                          <div className="flex min-w-0 flex-1 flex-col">
+                            <span className="truncate text-base font-semibold">
+                              {name || label}
+                            </span>
+                            {name && (
+                              <span className="text-muted-foreground font-mono text-xs">
+                                {label}
+                              </span>
+                            )}
+                          </div>
+                          {suggestion && (
+                            <span className="text-muted-foreground flex items-center gap-2 text-xs">
+                              Suggested
+                              <Button
+                                variant="outline"
+                                className={`${SMALL_BUTTON} bg-card dark:bg-card h-10 px-3`}
+                                disabled={speakerSaving}
+                                onClick={() => void saveSpeaker(label, suggestion)}
+                                aria-label={`Name ${label} ${suggestion}`}
+                              >
+                                <CheckIcon aria-hidden="true" />
+                                {suggestion}
+                              </Button>
+                            </span>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="ease-fluid hover:bg-card dark:hover:bg-card size-11 rounded-full duration-300"
+                            aria-label={`Rename ${label}`}
+                            onClick={() => {
+                              setSpeakerName(name ?? "");
+                              setSpeaker(label);
+                            }}
+                          >
+                            <PencilSimpleIcon aria-hidden="true" />
+                          </Button>
+                        </>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )}
+
+          <TranscriptList
+            variant="landing"
+            segments={segments}
+            speakerNames={meeting.speakerNames}
+            onSeek={meeting.hasAudio ? (seconds) => player.current?.seek(seconds) : undefined}
+            note="Speaker labels distinguish voices across the whole recording; rename speakers above to show their names. Older meetings may label speakers per audio part."
+          />
+        </div>
       </div>
     </div>
   );

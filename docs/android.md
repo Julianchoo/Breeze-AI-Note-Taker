@@ -274,6 +274,14 @@ alcanzable al desplazarse.
 En la portada (`/`), el encabezado flotante (`.island-nav`) y su menú a pantalla
 completa (`.island-menu`) reservan el mismo espacio superior.
 Chrome y otros navegadores sin el bridge mantienen su diseño normal.
+En las pantallas de reuniones, en teléfonos, las pestañas **New meeting / My meetings**
+están en una barra flotante inferior (`.meeting-tabbar`) a `--native-bottom-inset` + 12px;
+el marco reserva ese espacio más la altura de la barra para que el pie siga alcanzable.
+La barra se oculta mientras el teclado en pantalla está abierto (`visualViewport` y foco).
+Con edge-to-edge (targetSdk 35) puede que el WebView no se redimensione con el teclado:
+comprobar en el dispositivo que la barra no tapa campos de texto.
+Los elementos sticky (secciones del detalle, grupos por fecha de la lista) usan
+`--sticky-top`, que ya incluye `--native-top-inset`.
 
 Es una corrección web para el APK ya instalado, no una medición exacta del teléfono:
 la versión antigua no expone `WindowInsets` y algunos WebViews reportan cero.
@@ -299,6 +307,13 @@ Está preparada y probada una utilidad para cifrar/restaurar un respaldo de firm
 con un único secreto del propietario; **todavía no está activada**. Ver
 [preparación de migración y respaldo](android-signing-migration.md). El APK actual
 no cambió y su firma original sigue bloqueando nuevas publicaciones compatibles.
+
+
+La grabadora nativa muestra un anillo que "respira" mientras graba: es un indicador
+ambiental, no un nivel real, porque el bridge no expone la amplitud del micrófono.
+Mostrar niveles reales requiere un método nuevo en el bridge y, por tanto, un APK nuevo
+firmado con la clave original. Las transiciones entre páginas son un cambio web y no
+requieren otro APK.
 
 ## Inicio rápido de grabación
 
