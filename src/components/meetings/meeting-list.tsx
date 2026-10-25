@@ -35,6 +35,53 @@ const STATUS: Record<
   error: { label: "Needs attention", variant: "destructive", icon: WarningIcon },
 };
 
+/** A list row: the list route swaps the full summary for a short plain text preview (ready meetings only). */
+type MeetingListItem = Omit<Meeting, "summary"> & { preview: string | null };
+type Section<T> = { label: string; items: T[] };
+
+/** First day of the week for the viewer's locale (0 = Sunday), Monday where the browser cannot say. */
+function firstDayOfWeek() {
+  try {
+    const locale = new Intl.Locale(navigator.language) as Intl.Locale & {
+      getWeekInfo?: () => { firstDay: number };
+      weekInfo?: { firstDay: number };
+    };
+    // Intl reports 1 (Monday) to 7 (Sunday); Date#getDay counts Sunday as 0.
+    const firstDay = (locale.getWeekInfo?.() ?? locale.weekInfo)?.firstDay;
+    return firstDay ? firstDay % 7 : 1;
+  } catch {
+    return 1;
+  }
+}
+
+/** Local midnight `days` days after `date`'s day (negative goes back); setDate keeps DST changes right. */
+function startOfDay(date: Date, days = 0) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
+}
+
+/** Groups newest first items into Today, Yesterday, This week, This month, then one section per month,
+ * all in the viewer's time zone. Items keep their order; the first matching bucket wins. */
+function groupByDate<T extends { createdAt: string }>(items: T[], now = new Date()): Section<T>[] {
+  const today = startOfDay(now);
+  const yesterday = startOfDay(now, -1);
+  const week = startOfDay(now, -((today.getDay() - firstDayOfWeek() + 7) % 7));
+  const month = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthLabel = new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" });
+  const sections = new Map<string, T[]>();
+  for (const item of items) {
+    const date = new Date(item.createdAt);
+    // Future timestamps (a skewed device clock) read as today rather than as a month of their own.
+    const label =
+      date >= today ? "Today"
+      : date >= yesterday ? "Yesterday"
+      : date >= week ? "This week"
+      : date >= month ? "This month"
+      : monthLabel.format(date);
+    sections.set(label, [...(sections.get(label) ?? []), item]);
+  }
+  return [...sections].map(([label, items]) => ({ label, items }));
+}
+
 /** Marks the first accent-insensitive match of `query` in `text`. */
 function Highlight({ text, query }: { text: string; query: string }) {
   const match = findMatch(text, query);
@@ -49,7 +96,7 @@ function Highlight({ text, query }: { text: string; query: string }) {
 }
 
 export function MeetingList() {
-  const [meetings, setMeetings] = useState<Meeting[] | null>(null);
+  const [meetings, setMeetings] = useState<MeetingListItem[] | null>(null);
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
@@ -93,11 +140,14 @@ export function MeetingList() {
   }, [term, searchAttempt]);
   const searchLoading = searching && search.term !== term;
   const shownError = error || (searching && !searchLoading ? search.error : "");
-  const filtered: (Meeting | SearchResult)[] | undefined = searching ? search.results : meetings?.filter((meeting) =>
+  const filtered: (MeetingListItem | SearchResult)[] | undefined = searching ? search.results : meetings?.filter((meeting) =>
     `${meeting.title} ${new Date(meeting.createdAt).toLocaleDateString()} ${meeting.status}`
       .toLowerCase()
       .includes(query.toLowerCase())
   );
+  // Search results come back newest first too, so they keep the same sections: the date is part of what
+  // the reader is scanning for ("the one from last week"), and each section count reads as matches.
+  const sections = filtered ? groupByDate(filtered) : [];
   return (
     <div className="landing">
       <div className="mx-auto max-w-5xl px-4 pt-12 pb-20 sm:px-6 sm:pt-16 sm:pb-24">
@@ -184,6 +234,10 @@ export function MeetingList() {
             aria-busy="true"
             className="mt-6 flex flex-col gap-3"
           >
+            <div className="flex items-center gap-2 py-2">
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-3 w-4" />
+            </div>
             {[0, 1, 2].map((n) => (
               <div key={n} className="bg-card flex items-center gap-4 rounded-3xl border p-3 shadow-xs">
                 <Skeleton className="hidden size-12 shrink-0 rounded-xl sm:block" />
@@ -198,72 +252,99 @@ export function MeetingList() {
               </div>
             ))}
           </div>
-        ) : filtered?.length ? (
-          <ul className="animate-landing-rise mt-6 flex flex-col gap-3 [animation-delay:160ms]">
-            {filtered.map((meeting) => {
-              const status = STATUS[meeting.status];
-              const StatusIcon = status.icon;
-              return (
-                <li key={meeting.id}>
-                  {/* Outer 24px radius, 12px padding: the icon well takes 12px. */}
-                  <Link
-                    href={`/meetings/${meeting.id}`}
-                    className="group bg-card ease-fluid hover:border-foreground/20 focus-visible:ring-ring/50 flex items-center gap-4 rounded-3xl border p-3 shadow-xs transition-[translate,box-shadow,border-color] duration-500 hover:-translate-y-0.5 hover:shadow-[0_16px_40px_-24px_color-mix(in_oklch,var(--foreground)_45%,transparent)] focus-visible:ring-[3px] focus-visible:outline-none active:translate-y-0"
-                  >
-                    <div className="bg-band group-hover:bg-primary/10 ease-fluid hidden size-12 shrink-0 items-center justify-center rounded-xl transition-colors duration-300 sm:flex">
-                      <MicrophoneIcon
-                        className="text-muted-foreground group-hover:text-primary ease-fluid size-5 transition-colors duration-300"
-                        aria-hidden="true"
-                      />
-                    </div>
-                    <div className="min-w-0 flex-1 pl-2 sm:pl-0">
-                      <h2 className="truncate text-base font-semibold">{meeting.title}</h2>
-                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <p className="text-muted-foreground font-mono text-xs tabular-nums">
-                          {new Date(meeting.createdAt).toLocaleDateString(undefined, {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                          })}
-                          {"durationSeconds" in meeting && ` · ${Math.ceil(meeting.durationSeconds / 60)} min`}
-                        </p>
-                        <Badge variant={status.variant} className="shrink-0">
-                          {meeting.status === "recording" ? (
-                            <span
-                              className="bg-destructive animate-pulse-ring size-1.5 shrink-0 rounded-full"
+        ) : sections.length ? (
+          <div className="animate-landing-rise mt-6 flex flex-col gap-6 [animation-delay:160ms]">
+            {sections.map((section, index) => (
+              <section key={section.label} aria-labelledby={`meeting-section-${index}`}>
+                {/* Sticks flush under the shared site header (var(--sticky-top) includes the APK inset). No border:
+                    the translucent glass alone separates it from the cards scrolling underneath. */}
+                <div className="bg-background/80 sticky top-(--sticky-top) z-10 -mx-2 flex items-baseline gap-2 px-2 py-2 backdrop-blur">
+                  <h2 id={`meeting-section-${index}`} className="text-sm font-semibold">
+                    {section.label}
+                  </h2>
+                  <span className="text-muted-foreground font-mono text-xs tabular-nums">
+                    {section.items.length}
+                    <span className="sr-only">
+                      {" "}
+                      {searching
+                        ? section.items.length === 1 ? "result" : "results"
+                        : section.items.length === 1 ? "meeting" : "meetings"}
+                    </span>
+                  </span>
+                </div>
+                <ul className="mt-2 flex flex-col gap-3">
+                  {section.items.map((meeting) => {
+                    const status = STATUS[meeting.status];
+                    const StatusIcon = status.icon;
+                    return (
+                      <li key={meeting.id}>
+                        {/* Outer 24px radius, 12px padding: the icon well takes 12px. */}
+                        <Link
+                          href={`/meetings/${meeting.id}`}
+                          className="group bg-card ease-fluid hover:border-foreground/20 focus-visible:ring-ring/50 flex items-center gap-4 rounded-3xl border p-3 shadow-xs transition-[translate,box-shadow,border-color] duration-500 hover:-translate-y-0.5 hover:shadow-[0_16px_40px_-24px_color-mix(in_oklch,var(--foreground)_45%,transparent)] focus-visible:ring-[3px] focus-visible:outline-none active:translate-y-0"
+                        >
+                          <div className="bg-band group-hover:bg-primary/10 ease-fluid hidden size-12 shrink-0 items-center justify-center rounded-xl transition-colors duration-300 sm:flex">
+                            <MicrophoneIcon
+                              className="text-muted-foreground group-hover:text-primary ease-fluid size-5 transition-colors duration-300"
                               aria-hidden="true"
                             />
-                          ) : StatusIcon ? (
-                            <StatusIcon
-                              aria-hidden="true"
-                              weight={meeting.status === "ready" ? "fill" : "regular"}
-                              className={meeting.status === "processing" ? "animate-spin" : undefined}
-                            />
-                          ) : null}
-                          {status.label}
-                        </Badge>
-                      </div>
-                      {"hasAudio" in meeting && meeting.hasAudio ? (
-                        <p className="text-success mt-1 flex items-center gap-1 text-xs">
-                          <CloudCheckIcon className="size-4" aria-hidden="true" />
-                          Saved in OneDrive
-                        </p>
-                      ) : null}
-                      {"excerpt" in meeting && meeting.excerpt && (
-                        <p className="text-muted-foreground mt-2 line-clamp-2 text-sm">
-                          <Highlight text={meeting.excerpt} query={search.term} />
-                        </p>
-                      )}
-                    </div>
-                    <ArrowUpRightIcon
-                      className="text-muted-foreground group-hover:text-primary ease-fluid mr-2 size-4 shrink-0 transition-[color,translate] duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
-                      aria-hidden="true"
-                    />
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+                          </div>
+                          <div className="min-w-0 flex-1 pl-2 sm:pl-0">
+                            <h3 className="truncate text-base font-semibold">{meeting.title}</h3>
+                            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                              <p className="text-muted-foreground font-mono text-xs tabular-nums">
+                                {new Date(meeting.createdAt).toLocaleDateString(undefined, {
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                })}
+                                {"durationSeconds" in meeting && ` · ${Math.ceil(meeting.durationSeconds / 60)} min`}
+                              </p>
+                              <Badge variant={status.variant} className="shrink-0">
+                                {meeting.status === "recording" ? (
+                                  <span
+                                    className="bg-destructive animate-pulse-ring size-1.5 shrink-0 rounded-full"
+                                    aria-hidden="true"
+                                  />
+                                ) : StatusIcon ? (
+                                  <StatusIcon
+                                    aria-hidden="true"
+                                    weight={meeting.status === "ready" ? "fill" : "regular"}
+                                    className={meeting.status === "processing" ? "animate-spin" : undefined}
+                                  />
+                                ) : null}
+                                {status.label}
+                              </Badge>
+                            </div>
+                            {"hasAudio" in meeting && meeting.hasAudio ? (
+                              <p className="text-success mt-1 flex items-center gap-1 text-xs">
+                                <CloudCheckIcon className="size-4" aria-hidden="true" />
+                                Saved in OneDrive
+                              </p>
+                            ) : null}
+                            {"preview" in meeting && meeting.preview && (
+                              <p className="text-muted-foreground mt-2 line-clamp-1 text-sm sm:line-clamp-2">
+                                {meeting.preview}
+                              </p>
+                            )}
+                            {"excerpt" in meeting && meeting.excerpt && (
+                              <p className="text-muted-foreground mt-2 line-clamp-2 text-sm">
+                                <Highlight text={meeting.excerpt} query={search.term} />
+                              </p>
+                            )}
+                          </div>
+                          <ArrowUpRightIcon
+                            className="text-muted-foreground group-hover:text-primary ease-fluid mr-2 size-4 shrink-0 transition-[color,translate] duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
+                            aria-hidden="true"
+                          />
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            ))}
+          </div>
         ) : (
           <div className="animate-landing-rise bg-card mt-6 flex flex-col items-center gap-6 rounded-3xl border border-dashed px-6 py-16 text-center sm:py-24">
             <span className="bg-primary/10 text-primary flex size-12 items-center justify-center rounded-full">

@@ -12,9 +12,10 @@ export function SiteHeader() {
       >
         Skip to content
       </a>
-      <header className="site-header bg-background/70 border-border/60 sticky top-0 z-40 border-b backdrop-blur-md">
+      {/* Fixed height (border included): sticky page elements sit under it at var(--sticky-top). */}
+      <header className="site-header bg-background/70 border-border/60 sticky top-0 z-40 h-(--site-header-height) border-b backdrop-blur-md">
         <nav
-          className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3.5 sm:px-6"
+          className="mx-auto flex h-full max-w-6xl items-center justify-between px-4 sm:px-6"
           aria-label="Main navigation"
         >
           <Link href="/" aria-label="Breeze home" className="group flex items-center gap-2.5">

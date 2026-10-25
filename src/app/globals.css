@@ -356,6 +356,15 @@
 }
 
 
+/* Height of the sticky SiteHeader (fixed by its own class, so it never needs measuring) and the line
+   that sticky page elements sit flush under: the header plus, inside the APK, the reserved status bar
+   inset. Use --sticky-top instead of hard coded offsets. Declared on .app-frame so --native-top-inset
+   (set on the same element inside the APK) resolves here; outside the APK it falls back to 0. */
+.app-frame {
+  --site-header-height: 4rem;
+  --sticky-top: calc(var(--native-top-inset, 0px) + var(--site-header-height));
+}
+
 /* Only the native bridge opts into this legacy edge-to-edge WebView workaround.
    env() is commonly zero in the installed APK, so reserve conservative CSS-pixel
    space. These are minimum clearances, not measured device system-bar heights. */
@@ -400,4 +409,101 @@
 
 .app-frame[data-native-android="true"] [data-sonner-toaster][data-y-position="bottom"] {
   bottom: calc(var(--native-bottom-inset) + 16px);
+}
+
+/* ---------------------------------------------------------------------------------------------
+   Meetings bottom tab bar and page transitions (/meetings, /meetings/new, /meetings/history,
+   /meetings/[id]). See MeetingNavigation and MeetingsViewTransition.
+   --------------------------------------------------------------------------------------------- */
+
+/* Distance between the floating tab bar and the bottom edge: the browser's safe area, or inside the
+   APK the reserved bottom inset (the WebView often reports env() as zero there), plus 12px. */
+.app-frame {
+  --meeting-tabbar-offset: calc(env(safe-area-inset-bottom, 0px) + 0.75rem);
+}
+
+.app-frame[data-native-android="true"] {
+  --meeting-tabbar-offset: calc(var(--native-bottom-inset) + 0.75rem);
+}
+
+.meeting-tabbar {
+  bottom: var(--meeting-tabbar-offset);
+}
+
+/* Below sm the bar is shown, so the frame reserves room for it under the page and the footer: the
+   offset, the 58px pill and 22px of breathing room. Declared after the APK frame rule (same
+   specificity), so it replaces that padding instead of adding to it; the offset already includes the
+   native inset. */
+@media (width < 40rem) {
+  .app-frame:has(.meeting-tabbar) {
+    padding-bottom: calc(var(--meeting-tabbar-offset) + 5rem);
+  }
+}
+
+/* Chrome stays put during page transitions: named elements get their own transition groups, and an
+   identical old and new snapshot reads as static. The z-index keeps them above the page groups,
+   because groups only present in the new page are otherwise painted last. */
+.site-header {
+  view-transition-name: site-header;
+}
+
+.app-frame > footer {
+  view-transition-name: site-footer;
+}
+
+.meeting-tabs {
+  view-transition-name: meeting-tabs;
+}
+
+/* On the glass pill, not the fixed <nav>: a named element is a backdrop root for its descendants,
+   so naming the <nav> would leave the pill's backdrop blur with nothing behind it to blur. */
+.meeting-tabbar > div {
+  view-transition-name: meeting-tabbar;
+}
+
+::view-transition-group(site-header),
+::view-transition-group(meeting-tabs),
+::view-transition-group(meeting-tabbar) {
+  z-index: 2;
+}
+
+/* The page itself: the old page fades out quickly, the new one fades in while rising 12px, on the
+   landing ease-fluid curve. Everything outside named groups (the canvas) cross-fades on the same
+   curve. Browsers without view-transition-class support fall back to the default cross-fade. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 300ms;
+  animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+::view-transition-old(.meetings-page-exit) {
+  animation: meetings-page-exit 200ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+::view-transition-new(.meetings-page-enter) {
+  animation: meetings-page-enter 500ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+@keyframes meetings-page-exit {
+  to {
+    opacity: 0;
+    transform: translateY(-0.25rem);
+  }
+}
+
+@keyframes meetings-page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+}
+
+/* The global reduced motion guard only matches elements and ::before/::after, not view transition
+   pseudo-elements, so switch those off here: the page swaps instantly. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
 }

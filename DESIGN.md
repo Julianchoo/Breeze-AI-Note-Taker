@@ -9,7 +9,7 @@ This document defines the visual design system for the project — a warm editor
 - **Framework:** Next.js (App Router) + React + TypeScript
 - **Styling:** Tailwind CSS v4 (CSS-first config via `@theme inline` in `globals.css` — no `tailwind.config.ts`)
 - **Components:** shadcn/ui (new-york style, neutral base structure, tokens overridden to the warm palette)
-- **Icons:** Lucide React (app wide); Phosphor (`@phosphor-icons/react`, pinned `2.1.10`) on the landing screens only (home, record screen, meetings list), see "Landing system (home, record and meetings list)"
+- **Icons:** Lucide React (app wide); Phosphor (`@phosphor-icons/react`, pinned `2.1.10`) on the landing screens only (home, record screen, meetings list), see "Landing system (home, record, meetings list and detail)"
 - **Fonts:** Geist (sans), Geist Mono (mono), Instrument Serif (display) — all via `next/font/google`
 - **Dark mode:** next-themes (class-based, system default, 3-way toggle: Light / Dark / System)
 - **Utilities:** `cn()` from `@/lib/utils` (clsx + tailwind-merge)
@@ -397,16 +397,17 @@ Custom icons per state (`CircleCheckIcon`, `InfoIcon`, `TriangleAlertIcon`, `Oct
 
 ---
 
-## Landing system (home, record and meetings list)
+## Landing system (home, record, meetings list and detail)
 
 These screens deliberately do **not** follow the warm editorial system above. They follow the vendored landing skill (`.claude/skills/landing-page-design/SKILL.md`, Part B):
 
 - **Home:** `src/app/page.tsx`, `src/components/home/*` (public, with its own island nav).
 - **Record screen:** `/meetings` (`src/app/meetings/page.tsx`) and `/meetings/new` (`new-meeting.tsx`, `meeting-recorder.tsx`, `native-meeting-recorder.tsx`), in every state: idle, starting, recording, saving, stopped, errors, recovery, upload, and the Android native recorder.
 - **Meetings list:** `/meetings/history` (`meeting-list.tsx`): search, list, empty, loading and error states.
-- **Meeting tabs:** `meeting-navigation.tsx` uses the landing style on those three routes and keeps the editorial style on meeting detail.
+- **Meeting detail:** `/meetings/[id]` (`meeting-detail.tsx`, `meeting-sections.tsx` with `variant="landing"`, `notion-dialog.tsx`, `ai-cost-breakdown.tsx`). The public share page keeps the editorial `variant` default.
+- **Meeting tabs:** `meeting-navigation.tsx` uses the landing style on every meetings route, meeting detail included.
 
-Everything else (meeting detail, share pages, admin, auth pages, Android page, footer, and the standard `SiteHeader`) still follows the warm editorial system. The record screen and meetings list keep the shared `SiteHeader`; only the home replaces it with the island nav (below). Do not copy landing patterns into other app screens, and do not use editorial utilities (`font-display`, `.eyebrow`, `.glow-bg`, `.rule-fade`, `animate-fade-up`) on landing screens.
+Everything else (share pages, admin, auth pages, Android page, footer, and the standard `SiteHeader`) still follows the warm editorial system. The record screen and meetings list keep the shared `SiteHeader`; only the home replaces it with the island nav (below). Do not copy landing patterns into other app screens, and do not use editorial utilities (`font-display`, `.eyebrow`, `.glow-bg`, `.rule-fade`, `animate-fade-up`) on landing screens.
 
 ### Scope and tokens
 
@@ -501,7 +502,7 @@ Island nav, hero (label, gradient `h1`, subheading, CTA, one factual proof line,
 
 The same tokens, type, spacing, icon and motion rules as the home, applied to working screens. No hero gradient, no `Reveal`/`TaglineReveal` (content is above the fold or dynamic); entrance is `animate-landing-rise` with `[animation-delay:80ms|120ms|160ms]` staggers.
 
-- **Wrapper:** each page renders `<div className="landing">` itself (not the meetings layout), so meeting detail stays editorial. Page widths: `/meetings` full width centered, `/meetings/new` `max-w-2xl`, `/meetings/history` `max-w-5xl`.
+- **Wrapper:** each page renders `<div className="landing">` itself (not the meetings layout); meeting detail does too. Page widths: `/meetings` full width centered, `/meetings/new` `max-w-2xl`, `/meetings/history` `max-w-5xl`.
 - **Page header:** label `text-primary text-sm font-semibold`, `h1` `text-4xl sm:text-5xl font-semibold tracking-tight text-balance`, subcopy `text-muted-foreground text-base text-pretty`. No `.rule-fade` under it.
 - **Meeting tabs:** a `bg-card border-foreground/10 rounded-full border p-1 shadow-xs` track; each tab `rounded-full px-4 py-2 text-sm font-semibold` with a Phosphor icon. The current tab inverts (`bg-foreground text-background`, filled icon, `aria-current="page"`); the other is muted with a `hover:bg-accent` shift.
 - **Record button (`/meetings`):** the hero and the only primary action. A `bg-primary` circle (`w-52 sm:w-60`, filled `MicrophoneIcon` plus "Record" in `text-lg font-semibold`) inside a translucent `bg-card/60 border-foreground/10 rounded-full border p-3` bezel with a foreground tinted shadow, echoing the home's demo bezel. Hover `scale-[1.02]` and a deeper primary shadow, active `scale-[0.98]`, `focus-visible:ring-4`, all `ease-fluid duration-300`. The page `h1` stays `sr-only`. Below it: one calm line of copy and "Upload a recording" as a bordered `bg-card` pill (secondary).
@@ -512,3 +513,13 @@ The same tokens, type, spacing, icon and motion rules as the home, applied to wo
 - **Search:** `h-12 rounded-full bg-card` input with a `MagnifyingGlassIcon`; counts sit beside it in `font-mono text-xs`.
 - **Loading:** skeleton cards with the same shape as a row (well, two text bars, a badge pill), `role="status" aria-busy="true"`. The recorder shows a skeleton of the clock card while it detects the Android bridge.
 - **Empty:** a dashed `bg-card rounded-3xl border border-dashed` panel, `size-12 rounded-full bg-primary/10 text-primary` icon chip, `text-2xl sm:text-3xl font-semibold` heading and a "Record a meeting" primary pill.
+
+
+### Detail page, list groups, recorder motion and navigation
+
+- **Sticky offsets:** `SiteHeader` has a fixed height `--site-header-height` (4rem). `--sticky-top` adds the APK `--native-top-inset`; every sticky element on landing screens sits at `top-(--sticky-top)` (plus its own gap). Never hard code header heights.
+- **Meeting detail:** `max-w-3xl` reading column, back link, `Meeting notes` label, `text-4xl sm:text-5xl` h1 (an `sr-only` h1 keeps one h1 while renaming), labelled Rename / Share / Delete pills (`h-12` thirds on phones), and a sticky glass section switcher (`#summary`, `#recording`, `#speakers`, `#transcript`, plain anchors). Every block is a `bg-card rounded-3xl border p-3` card. Summary prose is `text-base max-w-prose` with Geist headings; the transcript is a native `<details>` card with a Geist Mono timestamp pill per segment. Dialogs and dropdowns opened from landing screens add `landing-island` to their content so the tokens follow the portal.
+- **Meetings list groups:** Today, Yesterday, This week, This month, then one section per month, in the viewer's time zone. Each section has an `h2` label with a `font-mono text-xs` count, sticky at `--sticky-top` on `bg-background/80 backdrop-blur` with no border; card titles are `h3`. Search stays grouped. Ready cards show a one line summary preview (`line-clamp-1`, two from `sm`); `GET /api/meetings` returns `preview` (max 160 characters), not the full `summary`.
+- **Recorder level meter:** 32 `aria-hidden` bars in the clock well (`recorder/audio-level-meter.tsx`), driven by a separate read only `AudioContext` on the same streams being recorded; flat when not recording, a still meter under reduced motion. The Android recorder has no level from the bridge, so it shows an ambient breathing ring (`recorder/listening-indicator.tsx`) that never pretends to be a level.
+- **Navigation on phones:** below `sm` the meeting tabs move to a fixed glass bottom bar (`.meeting-tabbar`, `min-h-12` tabs, `aria-current`), offset by `env(safe-area-inset-bottom)` or the APK `--native-bottom-inset` plus 12px; `.app-frame` reserves that space so the footer stays reachable. It hides (`inert`) while the on screen keyboard is open (`useVirtualKeyboardOpen`). Meeting detail marks "My meetings" current.
+- **Page transitions:** `/meetings/*` use React `<ViewTransition>` keyed by pathname (`MeetingsViewTransition`, `experimental.viewTransition`): old page fades out in 200ms, new page rises 12px in 500ms on `ease-fluid`. The Record circle morphs into the recorder clock well through a shared `<ViewTransition name>` (`recorder/record-handoff.tsx`), inside the same navigation, never a second manual `startViewTransition`. Reserved names: `site-header`, `site-footer`, `meeting-tabs`, `meeting-tabbar` and the record handoff name. Reduced motion disables the animations; unsupported browsers swap pages instantly.

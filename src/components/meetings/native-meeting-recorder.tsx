@@ -14,6 +14,8 @@ import {
   checkedNativeRequest, exportNativeRecording, interruptedByCall, nativeRecordings, startNativeRecording, stopNativeRecording,
   syncNativeRecording, type NativeRecording,
 } from "@/lib/native-android-recorder";
+import { ListeningIndicator } from "./recorder/listening-indicator";
+import { RecordHandoff } from "./recorder/record-handoff";
 
 /* Landing system classes (DESIGN.md "Landing system"). Markup only: the bridge calls above and below
    are unchanged. */
@@ -191,25 +193,30 @@ export function NativeMeetingRecorder({ userId, onFinished, autoStart = false }:
   const seconds = active ? Math.max(0, Math.floor((now - active.startedAt) / 1000)) : 0;
   return (
     <div className="flex flex-col gap-6">
-      <section className="bg-card animate-landing-rise rounded-3xl border p-3 shadow-xs [animation-delay:80ms]">
-        {/* Outer 24px radius, 12px gap: 12px well. */}
-        <div
-          className={`ease-fluid rounded-xl px-4 py-10 text-center transition-colors duration-700 ${active ? "bg-destructive/8" : "bg-band"}`}
-        >
-          <span className="bg-card inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold">
-            <span
-              aria-hidden="true"
-              className={`size-2 rounded-full ${active ? "bg-destructive animate-pulse-ring" : "bg-muted-foreground/40"}`}
-            />
-            {active ? "Recording microphone" : "Android microphone"}
-          </span>
-          <p className={`ease-fluid mt-6 font-mono text-5xl tracking-tight tabular-nums transition-colors duration-700 sm:text-6xl ${active ? "text-foreground" : "text-muted-foreground/45"}`} role="timer" aria-label="Recording duration">
-            {String(Math.floor(seconds / 3600)).padStart(2, "0")}:{String(Math.floor(seconds / 60) % 60).padStart(2, "0")}:{String(seconds % 60).padStart(2, "0")}
-          </p>
-          <p className="text-muted-foreground mx-auto mt-4 max-w-xs text-sm text-pretty">
-            {active ? "You can lock your screen or use other apps. Stop from here or the Android notification." : "Audio is saved on your phone, including while the screen is locked."}
-          </p>
-        </div>
+      {/* From the Record circle (autoStart) the well morphs in, so the card skips its own entrance. */}
+      <section className={`bg-card rounded-3xl border p-3 shadow-xs ${autoStart ? "" : "animate-landing-rise [animation-delay:80ms]"}`}>
+        {/* Outer 24px radius, 12px gap: 12px well. Receives the Record circle's handoff morph. */}
+        <RecordHandoff>
+          <div
+            className={`ease-fluid rounded-xl px-4 py-10 text-center transition-colors duration-700 ${active ? "bg-destructive/8" : "bg-band"}`}
+          >
+            <span className="bg-card inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold">
+              <span
+                aria-hidden="true"
+                className={`size-2 rounded-full ${active ? "bg-destructive animate-pulse-ring" : "bg-muted-foreground/40"}`}
+              />
+              {active ? "Recording microphone" : "Android microphone"}
+            </span>
+            <p className={`ease-fluid mt-6 font-mono text-5xl tracking-tight tabular-nums transition-colors duration-700 sm:text-6xl ${active ? "text-foreground" : "text-muted-foreground/45"}`} role="timer" aria-label="Recording duration">
+              {String(Math.floor(seconds / 3600)).padStart(2, "0")}:{String(Math.floor(seconds / 60) % 60).padStart(2, "0")}:{String(seconds % 60).padStart(2, "0")}
+            </p>
+            {/* Ambient only: the bridge reports no input level, so this never imitates a meter. */}
+            <ListeningIndicator active={!!active} />
+            <p className="text-muted-foreground mx-auto mt-4 max-w-xs text-sm text-pretty">
+              {active ? "You can lock your screen or use other apps. Stop from here or the Android notification." : "Audio is saved on your phone, including while the screen is locked."}
+            </p>
+          </div>
+        </RecordHandoff>
         <div className="px-3 pt-6 pb-3">
           <Button className="ease-fluid h-14 w-full text-base font-semibold duration-300 hover:-translate-y-0.5 active:translate-y-0" size="lg" variant={active ? "destructive" : "default"}
             disabled={busy || !ready} onClick={() => void (active ? stop() : start())}>

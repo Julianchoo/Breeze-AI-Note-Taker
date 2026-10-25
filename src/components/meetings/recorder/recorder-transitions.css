@@ -1,0 +1,50 @@
+/* Recorder motion that Tailwind utilities cannot express. Imported by the recorder components only;
+   kept out of globals.css on purpose. Everything here is decorative: without support for view
+   transitions or animations the recorder looks and works exactly the same, just without motion. */
+
+/* Record circle (/meetings) → clock well (/meetings/new). The group morphs between the two boxes
+   on the landing curve, clipped so the circle's corners open into the well's 12px corners. */
+::view-transition-group(breeze-record-handoff) {
+  animation-duration: 600ms;
+  animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+  border-radius: 0.75rem;
+  overflow: clip;
+}
+
+/* Fill the morphing box instead of keeping each snapshot's aspect ratio, so the round button
+   never shows as a stretched oval outside the box. */
+::view-transition-old(breeze-record-handoff),
+::view-transition-new(breeze-record-handoff) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+::view-transition-old(breeze-record-handoff) {
+  animation-duration: 250ms;
+}
+
+::view-transition-new(breeze-record-handoff) {
+  animation-duration: 600ms;
+}
+
+/* Reduced motion: the view transition pseudo elements are switched off in globals.css. */
+
+/* Android "listening" ring: a slow, uniform breath on a fixed 4s loop. It deliberately does not
+   follow sound (the native bridge exposes no input level), so it must never look like a meter. */
+@keyframes breeze-listening-breathe {
+  0%,
+  100% {
+    transform: scale(0.86);
+    opacity: 0.35;
+  }
+  50% {
+    transform: scale(1.14);
+    opacity: 0.9;
+  }
+}
+
+.recorder-listening-breathe {
+  animation: breeze-listening-breathe 4s ease-in-out infinite;
+}
