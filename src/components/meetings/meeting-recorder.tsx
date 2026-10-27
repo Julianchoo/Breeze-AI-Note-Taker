@@ -264,6 +264,17 @@ export function MeetingRecorder({
     }
   }
 
+  // A start that fails or is cancelled after the meeting was created but before any audio part
+  // exists would leave an empty "Recording not finalized" meeting with nothing to finish. Remove it
+  // (server and local copy) only while it has no audio at all; any captured part is kept.
+  async function discardEmptyStart(recording: CachedRecording) {
+    if (recording.chunks > 0) return;
+    await fetch(`/api/meetings/${recording.id}`, { method: "DELETE" }).catch(() => {});
+    await deleteRecording(userId, recording.id).catch(() => {});
+    if (active.current?.id === recording.id) active.current = null;
+    if (startedHere.current === recording.id) startedHere.current = null;
+  }
+
   async function start() {
     if (starting.current || active.current) return;
     starting.current = true;
@@ -344,6 +355,7 @@ export function MeetingRecorder({
       );
       if (!mounted.current) {
         capture.dispose();
+        await discardEmptyStart(recording);
         return;
       }
       recorder.current = capture;
@@ -353,6 +365,7 @@ export function MeetingRecorder({
       setPhase("recording");
     } catch (cause) {
       streams.forEach((stream) => stream.getTracks().forEach((track) => track.stop()));
+      if (active.current && !recorder.current) await discardEmptyStart(active.current);
       setError(cause instanceof Error ? cause.message : "Could not start recording.");
       setPhase(active.current ? "stopped" : "idle");
     } finally {
