@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { phoneAudioStatus } from "@/lib/audio-status";
 import {
   checkedNativeRequest, exportNativeRecording, interruptedByCall, nativeRecordings, startNativeRecording, stopNativeRecording,
-  syncNativeRecording, type NativeRecording,
+  retireEmptyNativeRecording, syncNativeRecording, type NativeRecording,
 } from "@/lib/native-android-recorder";
 import { ListeningIndicator } from "./recorder/listening-indicator";
 import { RecordHandoff } from "./recorder/record-handoff";
@@ -43,17 +43,38 @@ export function NativeMeetingRecorder({ userId, onFinished, autoStart = false }:
   const notified = useRef(new Set<string>());
   // Finished local copies whose meeting was checked on the server: true = deleted there, so hidden here.
   const deleted = useRef(new Map<string, boolean>());
+  // Meeting id between its creation and the phone service reporting audio, so an in-flight start is never retired.
+  const startingId = useRef<string | null>(null);
   const onFinishedRef = useRef(onFinished);
   useEffect(() => { onFinishedRef.current = onFinished; }, [onFinished]);
+
+  // true once the server says the meeting no longer exists (cached per page visit).
+  const meetingGone = useCallback(async (id: string) => {
+    if (deleted.current.has(id)) return !!deleted.current.get(id);
+    const response = await fetch(`/api/meetings/${id}`).catch(() => null);
+    if (response && response.status !== 401) deleted.current.set(id, response.status === 404);
+    return !!deleted.current.get(id);
+  }, []);
 
   const refresh = useCallback(async () => {
     if (refreshing.current || document.visibilityState !== "visible") return;
     refreshing.current = true;
     try {
       // ponytail: the phone keeps the files (the bridge has no delete); add one to the Android app to free the space.
-      for (const item of nativeRecordings(userId).filter((recording) => recording.finished && !deleted.current.has(recording.id))) {
-        const response = await fetch(`/api/meetings/${item.id}`).catch(() => null);
-        if (response && response.status !== 401) deleted.current.set(item.id, response.status === 404);
+      // Check every local copy once (not only finished ones): a copy whose meeting was deleted on the
+      // server must not be uploaded or adopted again, or every poll fails with "Meeting not found".
+      for (const item of nativeRecordings(userId).filter((recording) => !deleted.current.has(recording.id))) {
+        if (await meetingGone(item.id)) continue;
+        // The phone stopped before saving any audio (microphone or service failed to start, or a call
+        // cut it off at once). There is nothing to upload: show the phone's reason, remove the empty
+        // meeting so it is not stuck as "Recording not finalized", and stop retrying this copy.
+        // An unsealed part that needs recovery ("necesita recuperación") is real audio: never retire it.
+        if (item.stopped && !item.finished && item.chunks === 0 && item.id !== startingId.current && !item.error?.includes("recuperación")) {
+          await fetch(`/api/meetings/${item.id}`, { method: "DELETE" }).catch(() => {});
+          try { retireEmptyNativeRecording(item); } catch { /* retried on the next poll */ }
+          deleted.current.set(item.id, true);
+          if (mounted.current) setActionError(item.error ? `Recording stopped before any audio was saved: ${item.error}` : "Recording stopped before any audio was saved. Please try again.");
+        }
       }
       const items = nativeRecordings(userId).filter((recording) => !deleted.current.get(recording.id));
       if (mounted.current) {
@@ -88,7 +109,7 @@ export function NativeMeetingRecorder({ userId, onFinished, autoStart = false }:
         setError(cause instanceof Error ? cause.message : "Could not upload audio. Retry when connected.");
       }
     } finally { refreshing.current = false; if (mounted.current) setUploadingId(null); }
-  }, [userId, autoStart]);
+  }, [userId, autoStart, meetingGone]);
 
   useEffect(() => {
     mounted.current = true;
@@ -124,7 +145,9 @@ export function NativeMeetingRecorder({ userId, onFinished, autoStart = false }:
     // Read the bridge again: its foreground service can keep recording while this page is closed.
     try {
       const current = nativeRecordings(userId);
-      const existing = current.find((item) => !item.stopped && !item.finished);
+      let existing = current.find((item) => !item.stopped && !item.finished && !deleted.current.get(item.id));
+      // Never adopt a phone session whose meeting was deleted: start a new meeting instead.
+      if (existing && (await meetingGone(existing.id))) existing = undefined;
       if (existing) {
         // Reopening New meeting adopts the service session instead of creating another.
         // Its eventual Stop & save should still open the completed notes.
@@ -147,6 +170,7 @@ export function NativeMeetingRecorder({ userId, onFinished, autoStart = false }:
       }));
       if (typeof result?.meeting?.id !== "string") throw new Error("The meeting could not be created.");
       const meetingId: string = result.meeting.id;
+      startingId.current = meetingId;
       // The meeting exists before the phone records anything. If the page closes or the service
       // refuses to start, remove that empty meeting so it is never stuck as "Recording not finalized".
       const discard = () => fetch(`/api/meetings/${meetingId}`, { method: "DELETE" }).catch(() => {});
@@ -163,8 +187,8 @@ export function NativeMeetingRecorder({ userId, onFinished, autoStart = false }:
       setNow(Date.now());
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : "Could not start recording.");
-    } finally { starting.current = false; if (mounted.current) setBusy(false); }
-  }, [busy, ready, title, userId]);
+    } finally { starting.current = false; startingId.current = null; if (mounted.current) setBusy(false); }
+  }, [busy, ready, title, userId, meetingGone]);
 
   useEffect(() => {
     if (!autoStart || !ready || autoStartHandled.current) return;
