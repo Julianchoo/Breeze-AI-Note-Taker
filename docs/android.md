@@ -309,6 +309,13 @@ con un único secreto del propietario; **todavía no está activada**. Ver
 no cambió y su firma original sigue bloqueando nuevas publicaciones compatibles.
 
 
+Copias del teléfono huérfanas: la web consulta una vez por visita si la reunión de cada copia
+local sigue existiendo. Las copias cuya reunión fue borrada no se suben ni se adoptan al pulsar
+grabar (antes cada intento mostraba "Meeting not found"). Si el teléfono se detuvo sin guardar
+ninguna parte (micrófono o servicio que no arrancó, llamada inmediata), se muestra el motivo que
+reporta el teléfono, se borra la reunión vacía y la copia se marca terminada; los archivos siguen
+en el teléfono. Nunca se retira una copia con una parte pendiente de recuperación.
+
 La grabadora nativa muestra un anillo que "respira" mientras graba: es un indicador
 ambiental, no un nivel real, porque el bridge no expone la amplitud del micrófono.
 Mostrar niveles reales requiere un método nuevo en el bridge y, por tanto, un APK nuevo
