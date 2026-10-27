@@ -146,8 +146,18 @@ export function NativeMeetingRecorder({ userId, onFinished, autoStart = false }:
         body: JSON.stringify({title: name}), signal: AbortSignal.timeout(30000),
       }));
       if (typeof result?.meeting?.id !== "string") throw new Error("The meeting could not be created.");
-      if (!mounted.current) return;
-      const recording = startNativeRecording(result.meeting.id, userId, name);
+      const meetingId: string = result.meeting.id;
+      // The meeting exists before the phone records anything. If the page closes or the service
+      // refuses to start, remove that empty meeting so it is never stuck as "Recording not finalized".
+      const discard = () => fetch(`/api/meetings/${meetingId}`, { method: "DELETE" }).catch(() => {});
+      if (!mounted.current) { await discard(); return; }
+      let recording: NativeRecording;
+      try {
+        recording = startNativeRecording(meetingId, userId, name);
+      } catch (cause) {
+        await discard();
+        throw cause;
+      }
       startedHere.current = recording.id;
       setRecordings((items) => [recording, ...items]);
       setNow(Date.now());
