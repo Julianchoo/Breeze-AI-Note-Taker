@@ -966,20 +966,51 @@ export function MeetingDetailView({ id }: { id: string }) {
           {meeting.status === "recording" && (
             <section className={`${CARD} animate-landing-rise p-6 [animation-delay:120ms] sm:p-8`}>
               <p className={LABEL}>Unfinished</p>
-              <h2 className={`${SECTION_HEADING} mt-2`}>Finish a saved recording</h2>
-              <p className="text-muted-foreground mt-2 max-w-prose text-sm text-pretty">
-                If recording is still open in another tab, finish it there. If it was interrupted,
-                you can prepare notes from the {chunks.length} uploaded audio{" "}
-                {chunks.length === 1 ? "part" : "parts"}. Unsaved audio cannot be recovered here.
-              </p>
-              <Button
-                className={`${MAIN_BUTTON} mt-6`}
-                disabled={saving || chunks.length === 0}
-                onClick={recover}
-              >
-                <UploadSimpleIcon aria-hidden="true" />
-                Finish saved recording
-              </Button>
+              {chunks.length > 0 ? (
+                <>
+                  <h2 className={`${SECTION_HEADING} mt-2`}>Finish a saved recording</h2>
+                  <p className="text-muted-foreground mt-2 max-w-prose text-sm text-pretty">
+                    If recording is still open in another tab, finish it there. If it was
+                    interrupted, you can prepare notes from the {chunks.length} uploaded audio{" "}
+                    {chunks.length === 1 ? "part" : "parts"}. Unsaved audio cannot be recovered
+                    here.
+                  </p>
+                  <Button className={`${MAIN_BUTTON} mt-6`} disabled={saving} onClick={recover}>
+                    <UploadSimpleIcon aria-hidden="true" />
+                    Finish saved recording
+                  </Button>
+                </>
+              ) : (
+                <>
+                  {/* No audio reached the server, so there is nothing to finish here. Point to the
+                      device copies (web "Saved on this device", Android "Saved on this phone") on
+                      the New meeting screen, or let the empty meeting go. */}
+                  <h2 className={`${SECTION_HEADING} mt-2`}>No audio reached Breeze</h2>
+                  <p className="text-muted-foreground mt-2 max-w-prose text-sm text-pretty">
+                    If recording is still open in another tab or on your phone, finish it there.
+                    If it was interrupted, the audio may still be on the device you recorded with:
+                    open New meeting on that device to upload it. If nothing was recorded, delete
+                    this meeting.
+                  </p>
+                  <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                    <Button asChild className={MAIN_BUTTON}>
+                      <Link href="/meetings/new">
+                        <UploadSimpleIcon aria-hidden="true" />
+                        Check this device
+                      </Link>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className={MAIN_BUTTON}
+                      disabled={deleting}
+                      onClick={() => setDeleteOpen(true)}
+                    >
+                      <TrashIcon aria-hidden="true" />
+                      Delete meeting
+                    </Button>
+                  </div>
+                </>
+              )}
             </section>
           )}
 
