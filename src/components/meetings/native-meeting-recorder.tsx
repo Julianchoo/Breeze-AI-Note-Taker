@@ -4,14 +4,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   CaretDownIcon, CheckCircleIcon, CircleNotchIcon, DeviceMobileIcon, DownloadSimpleIcon, MicrophoneIcon, PhoneSlashIcon,
-  SlidersHorizontalIcon, StopIcon, UploadSimpleIcon, WarningIcon,
+  SlidersHorizontalIcon, StopIcon, TrashIcon, UploadSimpleIcon, WarningIcon,
 } from "@phosphor-icons/react/dist/ssr";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { phoneAudioStatus } from "@/lib/audio-status";
 import {
-  checkedNativeRequest, exportNativeRecording, interruptedByCall, nativeRecordings, startNativeRecording, stopNativeRecording,
+  checkedNativeRequest, exportNativeRecording, hasUnsentAudio, interruptedByCall, nativeRecordings, startNativeRecording, stopNativeRecording,
   retireEmptyNativeRecording, syncNativeRecording, type NativeRecording,
 } from "@/lib/native-android-recorder";
 import { ListeningIndicator } from "./recorder/listening-indicator";
@@ -30,6 +30,8 @@ export function NativeMeetingRecorder({ userId, onFinished, autoStart = false }:
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [recordings, setRecordings] = useState<NativeRecording[]>([]);
+  // Kept apart from `recordings` so they can only be exported: never uploaded, adopted or used for recorder status.
+  const [orphans, setOrphans] = useState<NativeRecording[]>([]);
   const [error, setError] = useState("");
   const [actionError, setActionError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -76,9 +78,11 @@ export function NativeMeetingRecorder({ userId, onFinished, autoStart = false }:
           if (mounted.current) setActionError(item.error ? `Recording stopped before any audio was saved: ${item.error}` : "Recording stopped before any audio was saved. Please try again.");
         }
       }
-      const items = nativeRecordings(userId).filter((recording) => !deleted.current.get(recording.id));
+      const onPhone = nativeRecordings(userId);
+      const items = onPhone.filter((recording) => !deleted.current.get(recording.id));
       if (mounted.current) {
         setRecordings(items);
+        setOrphans(onPhone.filter((recording) => deleted.current.get(recording.id) && hasUnsentAudio(recording)));
         setReady(true);
         setNow(Date.now());
       }
@@ -295,7 +299,7 @@ export function NativeMeetingRecorder({ userId, onFinished, autoStart = false }:
           {error || actionError ? <div role="alert" className={ALERT}><WarningIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" /><span className="min-w-0 flex-1">{actionError || error} Saved audio stays on your phone.</span></div> : null}
         </div>
       </section>
-      {recordings.some((item) => item.stopped) ? (
+      {recordings.some((item) => item.stopped) || orphans.length > 0 ? (
         <details className="group/saved bg-card animate-landing-rise rounded-3xl border p-3 shadow-xs [animation-delay:160ms]">
           <summary className={SUMMARY}>
             <DeviceMobileIcon className="text-muted-foreground size-4" aria-hidden="true" />
@@ -318,6 +322,17 @@ export function NativeMeetingRecorder({ userId, onFinished, autoStart = false }:
                 {item.chunks > 0 ? <Button variant="outline" size="sm" className="ease-fluid font-semibold duration-300" onClick={() => exportAudio(item)}><DownloadSimpleIcon />Export audio</Button> : null}
               </div>
             </li>; })}
+            {orphans.map((item) => (
+              <li key={item.id} className="bg-band rounded-xl p-4">
+                <p className="text-sm font-semibold">{item.title}</p>
+                <Badge variant="secondary" className="mt-2"><TrashIcon aria-hidden="true" />Meeting deleted</Badge>
+                <p className="text-muted-foreground mt-2 text-sm text-pretty">This audio never finished uploading and its meeting was deleted, so it can&apos;t be uploaded. Export it to keep a copy.</p>
+                {item.error ? <p role="alert" className="text-destructive mt-2 flex items-start gap-2 text-sm"><WarningIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />{item.error}</p> : null}
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <Button variant="outline" size="sm" className="ease-fluid font-semibold duration-300" onClick={() => exportAudio(item)}><DownloadSimpleIcon />Export audio</Button>
+                </div>
+              </li>
+            ))}
           </ul>
           {recordings.some((item) => item.stopped && !item.finished) ? <Button variant="secondary" className="ease-fluid m-3 font-semibold duration-300" disabled={busy} onClick={() => void refresh()}><UploadSimpleIcon />Retry uploading</Button> : null}
         </details>

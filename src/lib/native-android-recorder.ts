@@ -64,6 +64,10 @@ export function exportNativeRecording(id: string, userId: string) {
 export function interruptedByCall(recording: NativeRecording) {
   return !!recording.error?.includes("llamada");
 }
+/** Audio saved on the phone that never finished reaching the server. Finished copies did, and empty ones hold nothing. */
+export function hasUnsentAudio(recording: NativeRecording) {
+  return recording.stopped && !recording.finished && recording.chunks > 0;
+}
 /** Seals a stopped recording that captured no audio, so it is no longer retried. Its files stay on the phone. */
 export function retireEmptyNativeRecording(recording: NativeRecording) {
   parseNativeResult(bridge().markFinished(recording.id, recording.userId));

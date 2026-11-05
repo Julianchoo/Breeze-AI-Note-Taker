@@ -315,6 +315,9 @@ grabar (antes cada intento mostraba "Meeting not found"). Si el teléfono se det
 ninguna parte (micrófono o servicio que no arrancó, llamada inmediata), se muestra el motivo que
 reporta el teléfono, se borra la reunión vacía y la copia se marca terminada; los archivos siguen
 en el teléfono. Nunca se retira una copia con una parte pendiente de recuperación.
+Una copia cuya reunión fue borrada y que tiene audio sin terminar de subir sigue visible en
+**Saved on this phone** con la etiqueta **Meeting deleted** y **Export audio**; no se sube ni se
+adopta. Las copias terminadas o sin audio de una reunión borrada siguen ocultas.
 
 La grabadora nativa muestra un anillo que "respira" mientras graba: es un indicador
 ambiental, no un nivel real, porque el bridge no expone la amplitud del micrófono.

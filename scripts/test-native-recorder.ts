@@ -3,7 +3,7 @@ import type { NativeRecording } from "../src/lib/native-android-recorder";
 
 async function main() {
   const modulePath = "../src/lib/native-android-recorder.ts";
-  const { parseNativeResult, syncNativeRecording, nativeRecordings, exportNativeRecording, interruptedByCall } = await import(modulePath);
+  const { parseNativeResult, syncNativeRecording, nativeRecordings, exportNativeRecording, interruptedByCall, hasUnsentAudio } = await import(modulePath);
   assert.throws(() => parseNativeResult('{"ok":false,"error":"Storage full"}'), /Storage full/);
   assert.throws(() => parseNativeResult('{"recordings":[]}'), /invalid response/);
   assert.throws(() => parseNativeResult("broken"));
@@ -12,6 +12,10 @@ async function main() {
   assert.equal(interruptedByCall({}), false);
   const state: NativeRecording = {id: "meeting", userId: "user", title: "Test", chunks: 2,
     samples: 32000, stopped: true, finished: false, startedAt: 0, uploaded: []};
+  assert.equal(hasUnsentAudio(state), true, "stopped copy with audio that never finished uploading");
+  assert.equal(hasUnsentAudio({...state, finished: true}), false, "finished copies reached the server");
+  assert.equal(hasUnsentAudio({...state, chunks: 0}), false, "empty copies hold no audio");
+  assert.equal(hasUnsentAudio({...state, stopped: false}), false, "a copy still recording is not unsent yet");
   const requests: string[] = [];
   let failSecond = true;
   let receiptMismatch = false;
