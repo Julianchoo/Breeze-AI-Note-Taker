@@ -202,6 +202,10 @@ public class MainActivity extends Activity {
     private static void identifier(String value) {
         if (value == null || !value.matches("[A-Za-z0-9_-]{1,128}")) throw new IllegalArgumentException("Invalid recording or user ID");
     }
+    /** Marks recordings left "running" without a live capture as stopped, keeping their audio. */
+    private void reconcile() throws Exception {
+        synchronized (RecordingService.class) { if (!RecordingService.isRunning()) store.recover(); }
+    }
     public class Bridge {
         @JavascriptInterface public String getAppInfo() {
             return result(() -> new JSONObject().put("versionCode", BuildConfig.VERSION_CODE).put("versionName", BuildConfig.VERSION_NAME));
@@ -225,14 +229,22 @@ public class MainActivity extends Activity {
         }
         @JavascriptInterface public String stopRecording() {
             return result(() -> {
-                String id = RecordingService.activeId;
-                if (id == null) throw new IllegalStateException("No recording is active");
+                String id;
+                synchronized (RecordingService.class) {
+                    id = RecordingService.activeId;
+                    if (id == null) {
+                        // Nothing is capturing. A recording still marked as running is stale
+                        // (the service died or failed to finish): seal its audio and mark it stopped.
+                        store.recover();
+                        return new JSONObject().put("recording", JSONObject.NULL).put("recovered", true);
+                    }
+                }
                 startService(new Intent(MainActivity.this, RecordingService.class).setAction("com.breeze.app.STOP"));
                 return new JSONObject().put("recording", store.getActive(id));
             });
         }
-        @JavascriptInterface public String getRecordings(String userId) { return result(() -> { identifier(userId); return new JSONObject().put("recordings", store.list(userId)); }); }
-        @JavascriptInterface public String getSavedRecordings(String userId) { return result(() -> { identifier(userId); return new JSONObject().put("recordings", store.saved(userId)); }); }
+        @JavascriptInterface public String getRecordings(String userId) { return result(() -> { identifier(userId); reconcile(); return new JSONObject().put("recordings", store.list(userId)); }); }
+        @JavascriptInterface public String getSavedRecordings(String userId) { return result(() -> { identifier(userId); reconcile(); return new JSONObject().put("recordings", store.saved(userId)); }); }
         @JavascriptInterface public String exportRecording(String id, String userId) {
             return result(() -> {
                 identifier(id); identifier(userId);
@@ -256,7 +268,7 @@ public class MainActivity extends Activity {
                 return new JSONObject();
             });
         }
-        @JavascriptInterface public String getRecording(String id, String userId) { return result(() -> { identifier(id); identifier(userId); return new JSONObject().put("recording", store.get(id, userId)); }); }
+        @JavascriptInterface public String getRecording(String id, String userId) { return result(() -> { identifier(id); identifier(userId); reconcile(); return new JSONObject().put("recording", store.get(id, userId)); }); }
         @JavascriptInterface public String readChunk(String id, String userId, int index) { return result(() -> { identifier(id); identifier(userId); return store.readChunk(id, userId, index); }); }
         @JavascriptInterface public String markChunkUploaded(String id, String userId, int index) { return result(() -> { identifier(id); identifier(userId); store.markUploaded(id, userId, index); return new JSONObject(); }); }
         @JavascriptInterface public String markFinished(String id, String userId) { return result(() -> { identifier(id); identifier(userId); store.finish(id, userId); return new JSONObject(); }); }

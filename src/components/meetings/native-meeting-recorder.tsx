@@ -210,9 +210,23 @@ export function NativeMeetingRecorder({ userId, onFinished, autoStart = false }:
     setBusy(true);
     setActionError("");
     try {
-      const stopped = stopNativeRecording();
-      startedHere.current = stopped.id;
-      setRecordings((items) => items.map((item) => item.id === stopped.id ? stopped : item));
+      const ghost = active;
+      let stopped: NativeRecording | null;
+      try {
+        stopped = stopNativeRecording();
+      } catch (cause) {
+        // Older APKs answer this way for a recording still marked as running with nothing capturing;
+        // only reopening the app recovers it there.
+        if (cause instanceof Error && cause.message.includes("No recording is active")) {
+          throw new Error("The phone had already stopped recording. Close Breeze and open it again to recover this audio, then update the Android app.");
+        }
+        throw cause;
+      }
+      // null: nothing was capturing and the phone has just marked the stale recording stopped.
+      // Either way, open the notes of this recording once its saved audio is uploaded.
+      const id = stopped?.id ?? ghost?.id;
+      if (id) startedHere.current = id;
+      if (stopped) setRecordings((items) => items.map((item) => item.id === stopped.id ? stopped : item));
       await refresh();
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : "Could not stop recording. Check the Android notification.");

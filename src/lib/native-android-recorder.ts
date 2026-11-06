@@ -72,8 +72,12 @@ export function hasUnsentAudio(recording: NativeRecording) {
 export function retireEmptyNativeRecording(recording: NativeRecording) {
   parseNativeResult(bridge().markFinished(recording.id, recording.userId));
 }
-export function stopNativeRecording() {
-  return parseNativeResult<{recording: NativeRecording}>(bridge().stopRecording()).recording;
+/**
+ * Stops the phone recording. Returns null when nothing was capturing: the app has then marked any
+ * recording left "running" as stopped (keeping its audio), so the caller only needs to refresh.
+ */
+export function stopNativeRecording(): NativeRecording | null {
+  return parseNativeResult<{recording: NativeRecording | null}>(bridge().stopRecording()).recording ?? null;
 }
 export async function checkedNativeRequest(response: Response) {
   const result = await response.json().catch(() => null);
