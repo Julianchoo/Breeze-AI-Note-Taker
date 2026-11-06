@@ -71,6 +71,22 @@ la aplicación recupera el audio local que alcanzó a guardar y marca la grabaci
 interrumpida; revisar su estado antes de iniciar otra. No borrar datos ni
 desinstalar con audio pendiente.
 
+**Grabaciones "fantasma":** el estado de la web sale de `metadata.json`
+(`stopped: false` = grabando), pero detener usa `RecordingService.activeId`, que
+vive en memoria. Si el servicio murió sin marcar la grabación como detenida, ambos
+divergían: la web mostraba el cronómetro y **Stop** fallaba con "No recording is
+active". Ahora `getRecordings`, `getSavedRecordings` y `getRecording` ejecutan
+`store.recover()` (bajo el lock `RecordingService.class`) cuando no hay captura
+activa, así que la pantalla se corrige en el siguiente sondeo de 3 segundos;
+`stopRecording` sin captura activa también recupera y devuelve
+`{recording: null, recovered: true}` en lugar de un error. El servicio sólo limpia
+`activeId`/`worker` si siguen siendo los de la captura que terminó, encola un
+inicio que llega mientras la anterior se cierra y reintenta una vez marcar la
+grabación como detenida (si falla, `recover()` la repara). Con APKs anteriores
+la web pide cerrar y volver a abrir Breeze para recuperar el audio. Verificar en
+teléfono: grabar, forzar detención desde Ajustes y reabrir; **Stop** sobre una
+grabación sin notificación; detener y volver a grabar enseguida.
+
 El inicio de sesión con Google abre el navegador del sistema. Después de iniciar
 sesión, tocar **Connect** para volver a la aplicación. La sesión se transfiere
 mediante un token cifrado de corta duración (120 segundos) protegido con PKCE. Este flujo

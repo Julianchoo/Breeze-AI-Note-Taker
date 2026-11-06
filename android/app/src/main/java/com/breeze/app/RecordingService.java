@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.content.pm.ServiceInfo;
 import android.media.*;
 import android.os.*;
+import android.util.Log;
 import java.io.File;
 
 /** A user-started foreground microphone service, independent of the WebView lifecycle. */
@@ -14,8 +15,13 @@ public final class RecordingService extends Service {
     public static final String STOP = "com.breeze.app.STOP";
     public static volatile String activeId;
     private static final int NOTIFICATION = 14;
+    private static final String TAG = "BreezeRecording";
     private volatile boolean stopping;
     private Thread worker;
+    /** Recording the current worker captures; guarded by RecordingService.class. */
+    private String workerId;
+    /** A start that arrived while the previous worker was still finishing. */
+    private Intent pendingStart;
     private int latestStartId;
     private PowerManager.WakeLock wakeLock;
     public static boolean isRunning() { return activeId != null; }
@@ -23,10 +29,34 @@ public final class RecordingService extends Service {
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
         latestStartId = startId;
         if (intent == null) { stopSelf(); return START_NOT_STICKY; }
-        if (STOP.equals(intent.getAction())) { stopping = true; return START_NOT_STICKY; }
-        if (worker != null) return START_NOT_STICKY;
+        if (STOP.equals(intent.getAction())) {
+            stopping = true;
+            synchronized (RecordingService.class) {
+                // A start still waiting for the previous capture never recorded: mark it stopped too.
+                String waiting = pendingStart == null ? null : pendingStart.getStringExtra("id");
+                pendingStart = null;
+                if (waiting != null) {
+                    markStopped(waiting, "Se detuvo antes de empezar a grabar");
+                    if (waiting.equals(activeId)) activeId = null;
+                }
+            }
+            return START_NOT_STICKY;
+        }
         String id = intent.getStringExtra("id");
-        if (id == null) { stopSelf(); return START_NOT_STICKY; }
+        if (id == null) { if (worker == null) stopSelf(); return START_NOT_STICKY; }
+        synchronized (RecordingService.class) {
+            if (worker != null) {
+                // The previous capture is still sealing its audio. Never drop this start:
+                // it would leave a recording marked as running that nothing captures.
+                if (!id.equals(workerId)) pendingStart = intent;
+                return START_NOT_STICKY;
+            }
+            begin(intent, id);
+        }
+        return START_NOT_STICKY;
+    }
+    /** Caller holds RecordingService.class. */
+    private void begin(Intent intent, String id) {
         activeId = id;
         stopping = false;
         try {
@@ -42,15 +72,26 @@ public final class RecordingService extends Service {
             if (open != null) notification.setContentIntent(PendingIntent.getActivity(this, 0, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
             if (Build.VERSION.SDK_INT >= 29) startForeground(NOTIFICATION, notification.build(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE);
             else startForeground(NOTIFICATION, notification.build());
-            wakeLock = getSystemService(PowerManager.class).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Breeze:recording");
+            if (wakeLock == null) wakeLock = getSystemService(PowerManager.class).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Breeze:recording");
             wakeLock.acquire(4 * 60 * 60 * 1000L + 60000);
+            workerId = id;
             worker = new Thread(() -> capture(id), "Breeze microphone");
             worker.start();
         } catch (Exception error) {
-            try { new RecordingStore(this).updateState(id, true, "No se pudo iniciar el micrófono: " + error.getMessage()); } catch (Exception ignored) { }
-            activeId = null; stopSelf();
+            markStopped(id, "No se pudo iniciar el micrófono: " + error.getMessage());
+            worker = null; workerId = null;
+            if (id.equals(activeId)) activeId = null;
+            stopForeground(STOP_FOREGROUND_REMOVE);
+            stopSelf();
         }
-        return START_NOT_STICKY;
+    }
+    /** Marks the recording stopped, retrying once; recover() repairs it later if both fail. */
+    private void markStopped(String id, String failure) {
+        RecordingStore store = new RecordingStore(this);
+        for (int attempt = 0; attempt < 2; attempt++) {
+            try { store.updateState(id, true, failure); return; }
+            catch (Exception error) { Log.e(TAG, "Could not mark recording " + id + " stopped (attempt " + (attempt + 1) + ")", error); }
+        }
     }
     private void capture(String id) {
         RecordingStore store = new RecordingStore(this);
@@ -104,14 +145,24 @@ public final class RecordingService extends Service {
                 try { long samples = wav.samples(); wav.close(); if (samples > 0) store.sealChunk(id, index, samples); else if (target != null) target.delete(); }
                 catch (Exception error) { failure = "El audio necesita recuperación: " + error.getMessage(); }
             }
-            try { store.updateState(id, true, failure); } catch (Exception ignored) { }
+            markStopped(id, failure);
             if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
+            Thread finished = Thread.currentThread();
             new Handler(Looper.getMainLooper()).post(() -> {
                 synchronized (RecordingService.class) {
-                    worker = null;
-                    stopForeground(STOP_FOREGROUND_REMOVE);
-                    stopSelfResult(latestStartId);
-                    activeId = null;
+                    if (worker == finished) { worker = null; workerId = null; }
+                    if (id.equals(activeId)) activeId = null;
+                    Intent next = pendingStart;
+                    pendingStart = null;
+                    String nextId = next == null ? null : next.getStringExtra("id");
+                    if (nextId != null && worker == null) {
+                        begin(next, nextId);
+                        return;
+                    }
+                    if (worker == null) {
+                        stopForeground(STOP_FOREGROUND_REMOVE);
+                        stopSelfResult(latestStartId);
+                    }
                 }
             });
         }
