@@ -28,7 +28,7 @@ export default function MeetingsPage() {
         <div className="animate-landing-rise flex flex-col items-center gap-4 text-center [animation-delay:120ms]">
           <p className="text-muted-foreground text-base text-pretty">Tap to record your microphone</p>
           <Link
-            href="/meetings/new"
+            href="/meetings/new?upload=1"
             className="bg-card ease-fluid hover:bg-accent focus-visible:ring-ring/50 inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-semibold shadow-xs transition-[background-color,scale] duration-300 focus-visible:ring-[3px] focus-visible:outline-none active:scale-[0.98]"
           >
             <UploadSimpleIcon className="text-muted-foreground size-4" aria-hidden="true" />

@@ -11,7 +11,12 @@ import { NativeMeetingRecorder } from "./native-meeting-recorder";
 
 const subscribe = () => () => {};
 
-export function NewMeeting({ userId, autoStart = false }: { userId: string; autoStart?: boolean }) {
+export function NewMeeting({ userId, autoStart = false, uploadFirst = false }: {
+  userId: string;
+  autoStart?: boolean;
+  /** `/meetings/new?upload=1`, from "Upload a recording": the upload card leads the page. */
+  uploadFirst?: boolean;
+}) {
   const router = useRouter();
   const hydrated = useSyncExternalStore(subscribe, () => true, () => false);
   const native = hydrated && hasAndroidRecorder();
@@ -34,16 +39,18 @@ export function NewMeeting({ userId, autoStart = false }: { userId: string; auto
           My meetings
         </Link>
         <header className="animate-landing-rise mt-6 mb-8 flex flex-col gap-3 sm:mt-8">
-          <p className="text-primary text-sm font-semibold">New recording</p>
+          <p className="text-primary text-sm font-semibold">{uploadFirst ? "Upload" : "New recording"}</p>
           <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">Your meeting</h1>
           <p className="text-muted-foreground text-base text-pretty">
-            {native
-              ? "Record now. Breeze takes care of the notes."
-              : "Record now. Add meeting tab audio whenever you want."}
+            {uploadFirst
+              ? "Choose an audio or video file. Breeze takes care of the notes."
+              : native
+                ? "Record now. Breeze takes care of the notes."
+                : "Record now. Add meeting tab audio whenever you want."}
           </p>
         </header>
         {hydrated ? (
-          <Recorder userId={userId} autoStart={autoStart} onFinished={(id) => router.push(`/meetings/${id}`)} />
+          <Recorder userId={userId} autoStart={autoStart} uploadFirst={uploadFirst} onFinished={(id) => router.push(`/meetings/${id}`)} />
         ) : (
           <div role="status" aria-busy="true" className="bg-card rounded-3xl border p-3 shadow-xs">
             <div className="bg-band flex flex-col items-center gap-4 rounded-xl px-4 py-10">

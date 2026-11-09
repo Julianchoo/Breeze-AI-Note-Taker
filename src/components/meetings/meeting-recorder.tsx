@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowClockwiseIcon,
-  ArrowCounterClockwiseIcon,
   CaretDownIcon,
   CircleNotchIcon,
   DownloadSimpleIcon,
@@ -18,8 +17,7 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { decodeAudioFile, sliceChunks } from "@/lib/audio-file";
-import { AUDIO_SAMPLE_RATE, captureAudio, encodeWav } from "@/lib/audio-recorder";
+import { captureAudio } from "@/lib/audio-recorder";
 import {
   cacheChunk,
   deleteRecording,
@@ -31,6 +29,7 @@ import {
 } from "@/lib/recording-cache";
 import { AudioLevelMeter } from "./recorder/audio-level-meter";
 import { RecordHandoff } from "./recorder/record-handoff";
+import { RecordingUpload } from "./recording-upload";
 
 /* Landing system classes (DESIGN.md "Landing system"), shared by the recorder's buttons, disclosures
    and alerts so every state reads the same. Markup only: no recording behaviour depends on them. */
@@ -57,9 +56,12 @@ export function MeetingRecorder({
   userId,
   onFinished,
   autoStart = false,
+  uploadFirst = false,
 }: {
   userId: string;
   autoStart?: boolean;
+  /** Upload mode: the upload card comes first, opened and focused. Never starts the microphone. */
+  uploadFirst?: boolean;
   onFinished: (id: string) => void;
 }) {
   const [title, setTitle] = useState("");
@@ -90,12 +92,8 @@ export function MeetingRecorder({
   const startedAt = useRef(0);
   const mounted = useRef(true);
   const acquired = useRef<MediaStream[]>([]);
-  const [filePhase, setFilePhase] = useState<"idle" | "decoding" | "uploading">("idle");
-  const [fileProgress, setFileProgress] = useState({ done: 0, total: 0 });
-  const [fileError, setFileError] = useState("");
-  const [dragging, setDragging] = useState(false);
-  // Kept after a failed upload so Retry resumes the same meeting instead of creating another.
-  const [fileJob, setFileJob] = useState<{ id: string; chunks: Int16Array[] } | null>(null);
+  // A file decode or upload is running in the upload card; the recorder locks its controls meanwhile.
+  const [fileBusy, setFileBusy] = useState(false);
   // Read-only references for the level meter: the same streams captureAudio() records, never
   // stopped or changed by the meter. The recorder below keeps owning their lifecycle.
   const [micLevelStreams, setMicLevelStreams] = useState<MediaStream[]>([]);
@@ -420,80 +418,6 @@ export function MeetingRecorder({
     }
   }
 
-  async function sendFile(job: { id: string; chunks: Int16Array[] }) {
-    setFileError("");
-    setFilePhase("uploading");
-    try {
-      for (let index = 0; index < job.chunks.length; index++) {
-        setFileProgress({ done: index, total: job.chunks.length });
-        // The chunk endpoint is idempotent for identical audio, so retrying is safe.
-        for (let attempt = 1; ; attempt++) {
-          try {
-            const receipt = await checked(
-              await fetch(`/api/meetings/${job.id}/chunks`, {
-                method: "POST",
-                headers: { "Content-Type": "audio/wav", "X-Chunk-Index": String(index) },
-                body: encodeWav(job.chunks[index]!),
-                signal: AbortSignal.timeout(60000),
-              })
-            );
-            if (receipt?.index !== index) throw new Error("Audio upload was not confirmed.");
-            break;
-          } catch (cause) {
-            if (attempt >= 3) throw cause;
-            await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
-          }
-        }
-      }
-      setFileProgress({ done: job.chunks.length, total: job.chunks.length });
-      await checked(
-        await fetch(`/api/meetings/${job.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "finish",
-            expectedChunks: job.chunks.length,
-            durationSeconds:
-              job.chunks.reduce((sum, chunk) => sum + chunk.length, 0) / AUDIO_SAMPLE_RATE,
-          }),
-        })
-      );
-      setFileJob(null);
-      if (mounted.current) onFinished(job.id);
-    } catch (cause) {
-      setFileError(cause instanceof Error ? cause.message : "Could not upload the file.");
-      setFilePhase("idle");
-    }
-  }
-
-  async function uploadFile(file: File) {
-    setFileJob(null);
-    setFileError("");
-    setFilePhase("decoding");
-    let job: { id: string; chunks: Int16Array[] };
-    try {
-      const chunks = sliceChunks(await decodeAudioFile(file));
-      // No typed title → the "Untitled meeting" sentinel, which gets an AI-generated title after processing.
-      const name = title.trim() || "Untitled meeting";
-      const result = await checked(
-        await fetch("/api/meetings", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: name }),
-        })
-      );
-      if (typeof result?.meeting?.id !== "string")
-        throw new Error("The meeting could not be created.");
-      job = { id: result.meeting.id, chunks };
-      setFileJob(job);
-    } catch (cause) {
-      setFileError(cause instanceof Error ? cause.message : "Could not read the file.");
-      setFilePhase("idle");
-      return;
-    }
-    await sendFile(job);
-  }
-
   function download(blob: Blob, index: number) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -503,10 +427,20 @@ export function MeetingRecorder({
     setTimeout(() => URL.revokeObjectURL(url), 10000);
   }
 
-  const fileBusy = filePhase !== "idle";
   const busy = phase !== "idle" || fileBusy;
+  const uploadCard = (
+    <RecordingUpload
+      title={title}
+      disabled={phase !== "idle"}
+      onBusyChange={setFileBusy}
+      onFinished={onFinished}
+      featured={uploadFirst}
+      className={uploadFirst ? "[animation-delay:80ms]" : "[animation-delay:160ms]"}
+    />
+  );
   return (
     <div className="flex flex-col gap-6">
+      {uploadFirst ? uploadCard : null}
       {recoveries.length > 0 && !busy ? (
         <section className="bg-card animate-landing-rise rounded-3xl border p-6 shadow-xs sm:p-8">
           <p className="text-primary text-sm font-semibold">Unfinished</p>
@@ -560,7 +494,7 @@ export function MeetingRecorder({
 
       {/* Arriving from the Record circle (autoStart), the clock well morphs in from the circle, so the
           card skips its own entrance instead of fading in around the well a second time. */}
-      <div className={`bg-card rounded-3xl border p-3 shadow-xs ${autoStart ? "" : "animate-landing-rise [animation-delay:80ms]"}`}>
+      <div className={`bg-card rounded-3xl border p-3 shadow-xs ${autoStart ? "" : uploadFirst ? "animate-landing-rise [animation-delay:160ms]" : "animate-landing-rise [animation-delay:80ms]"}`}>
         {/* The clock: the hero of this screen once the tape is rolling. Outer 24px radius, 12px gap: 12px well. */}
         <RecordHandoff>
           <div
@@ -764,97 +698,7 @@ export function MeetingRecorder({
         </div>
       </div>
 
-      <details className="group/upload bg-card animate-landing-rise rounded-3xl border p-3 shadow-xs [animation-delay:160ms]">
-        <summary className={SUMMARY}>
-          <UploadSimpleIcon className="text-muted-foreground size-4" aria-hidden="true" />
-          Upload an existing recording
-          <CaretDownIcon
-            className="text-muted-foreground ease-fluid ml-auto size-4 transition-transform duration-300 group-open/upload:rotate-180"
-            aria-hidden="true"
-          />
-        </summary>
-        <div className="px-3 pt-2 pb-3">
-          <p className="text-muted-foreground text-sm text-pretty">
-            Audio or video, up to 4 hours. Breeze will name the meeting automatically.
-          </p>
-          <label
-            onDragOver={(event) => {
-              event.preventDefault();
-              if (!busy) setDragging(true);
-            }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={(event) => {
-              event.preventDefault();
-              setDragging(false);
-              const file = event.dataTransfer.files[0];
-              if (file && !busy) void uploadFile(file);
-            }}
-            className={`ease-fluid focus-within:ring-ring/50 mt-4 flex cursor-pointer flex-col items-center gap-3 rounded-xl border border-dashed px-6 py-10 text-center transition-colors duration-300 focus-within:ring-[3px] has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60 ${
-              dragging ? "border-primary bg-primary/5" : "bg-band hover:border-foreground/30"
-            }`}
-          >
-            <input
-              type="file"
-              accept="audio/*,video/*"
-              disabled={busy}
-              className="sr-only"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                event.target.value = "";
-                if (file) void uploadFile(file);
-              }}
-            />
-            <span className="bg-primary/10 text-primary flex size-12 items-center justify-center rounded-full">
-              {fileBusy ? (
-                <CircleNotchIcon className="size-6 animate-spin" aria-hidden="true" />
-              ) : (
-                <UploadSimpleIcon className="size-6" aria-hidden="true" />
-              )}
-            </span>
-            <span className="text-sm font-semibold">
-              {filePhase === "decoding"
-                ? "Decoding…"
-                : filePhase === "uploading"
-                  ? `Uploading part ${Math.min(fileProgress.done + 1, fileProgress.total)} of ${fileProgress.total}`
-                  : "Choose a file or drop it here"}
-            </span>
-            <span className="text-muted-foreground text-xs">MP3, M4A, WAV, OGG, WebM, MP4, MOV</span>
-          </label>
-
-          {filePhase === "uploading" ? (
-            <div
-              role="progressbar"
-              aria-label="Upload progress"
-              aria-valuemin={0}
-              aria-valuemax={fileProgress.total}
-              aria-valuenow={fileProgress.done}
-              className="bg-muted mt-4 h-1.5 overflow-hidden rounded-full"
-            >
-              <div
-                className="bg-primary ease-fluid h-full rounded-full transition-[width] duration-700"
-                style={{ width: `${(fileProgress.done / fileProgress.total) * 100}%` }}
-              />
-            </div>
-          ) : null}
-
-          {fileError ? (
-            <div role="alert" className={ALERT}>
-              <WarningIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-              <span className="min-w-0 flex-1">{fileError}</span>
-            </div>
-          ) : null}
-          {fileError && fileJob && !busy ? (
-            <Button
-              variant="secondary"
-              className={`${SMALL_BUTTON} mt-4 w-full`}
-              onClick={() => void sendFile(fileJob)}
-            >
-              <ArrowCounterClockwiseIcon />
-              Retry upload
-            </Button>
-          ) : null}
-        </div>
-      </details>
+      {uploadFirst ? null : uploadCard}
     </div>
   );
 }
