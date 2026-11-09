@@ -3,6 +3,8 @@ package com.breeze.app;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.ActivityNotFoundException;
+import android.content.ClipData;
 import android.content.SharedPreferences;
 import android.webkit.CookieManager;
 import android.widget.EditText;
@@ -18,6 +20,8 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.webkit.JavascriptInterface;
+import android.webkit.ValueCallback;
+import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
@@ -33,6 +37,10 @@ public class MainActivity extends Activity {
     private SharedPreferences preferences;
     private RecordingStore store;
     private volatile boolean visible;
+    private static final int EXPORT_REQUEST = 41;
+    private static final int FILE_CHOOSER_REQUEST = 42;
+    /** The web page's pending <input type="file"> request; WebView expects exactly one answer per request. */
+    private ValueCallback<Uri[]> fileChooserCallback;
     private boolean trusted(Uri uri) {
         Uri origin = Uri.parse(breezeOrigin);
         return "https".equals(uri.getScheme()) && origin.getHost().equals(uri.getHost()) && origin.getPort() == uri.getPort();
@@ -94,6 +102,11 @@ public class MainActivity extends Activity {
                 return new WebResourceResponse("text/plain", "UTF-8", 403, "Blocked", java.util.Collections.emptyMap(), new ByteArrayInputStream(new byte[0]));
             }
         });
+        web.setWebChromeClient(new WebChromeClient() {
+            @Override public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
+                return showFileChooser(callback, params);
+            }
+        });
         setContentView(web);
         web.loadUrl(breezeOrigin + "/meetings");
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
@@ -104,12 +117,13 @@ public class MainActivity extends Activity {
     }
     @Override protected void onResume() { super.onResume(); visible = true; }
     @Override protected void onPause() { visible = false; super.onPause(); }
-    @Override protected void onDestroy() { if (web != null) { web.removeJavascriptInterface("BreezeAndroid"); web.destroy(); } super.onDestroy(); }
+    @Override protected void onDestroy() { cancelFileChooser(); if (web != null) { web.removeJavascriptInterface("BreezeAndroid"); web.destroy(); } super.onDestroy(); }
     @Override public void onBackPressed() { if (web != null && web.canGoBack()) web.goBack(); else super.onBackPressed(); }
     @Override protected void onNewIntent(Intent intent) { super.onNewIntent(intent); setIntent(intent); handleAuthIntent(intent); }
     @Override protected void onActivityResult(int request, int resultCode, Intent data) {
         super.onActivityResult(request, resultCode, data);
-        if (request != 41) return;
+        if (request == FILE_CHOOSER_REQUEST) { deliverFileChooserResult(resultCode, data); return; }
+        if (request != EXPORT_REQUEST) return;
         String id = preferences.getString("exportId", null);
         String userId = preferences.getString("exportUser", null);
         preferences.edit().remove("exportId").remove("exportUser").apply();
@@ -124,6 +138,58 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> Toast.makeText(this, "Could not save audio. The original recording is still on this phone; try another destination.", Toast.LENGTH_LONG).show());
             }
         }, "breeze-audio-export").start();
+    }
+    /**
+     * Opens the system document picker (SAF) for a web file input, so no storage
+     * permission is needed. The picker grants this activity read access to the
+     * returned content:// URIs and WebView reads them itself when the page uploads
+     * the file; setAllowContentAccess(false) only blocks loading content:// URLs as
+     * pages or subresources, not file chooser results.
+     */
+    private boolean showFileChooser(ValueCallback<Uri[]> callback, WebChromeClient.FileChooserParams params) {
+        // A request still waiting must be answered, or that input stays stuck for the page.
+        cancelFileChooser();
+        String[] types = FileChooserTypes.mimeTypes(params.getAcceptTypes());
+        boolean multiple = params.getMode() == WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE;
+        Intent intent;
+        try { intent = params.createIntent(); }
+        catch (RuntimeException error) { intent = null; }
+        if (intent == null) intent = new Intent(Intent.ACTION_GET_CONTENT).addCategory(Intent.CATEGORY_OPENABLE);
+        // createIntent() keeps only the first accept type (audio/* without video/*), so
+        // widen the type and list every accepted type for the picker to filter on.
+        if (types.length > 1) intent.setType(FileChooserTypes.intentType(types)).putExtra(Intent.EXTRA_MIME_TYPES, types);
+        else if (intent.getType() == null) intent.setType(FileChooserTypes.intentType(types));
+        if (multiple) intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+        fileChooserCallback = callback;
+        try {
+            startActivityForResult(intent, FILE_CHOOSER_REQUEST);
+            return true;
+        } catch (ActivityNotFoundException error) {
+            fileChooserCallback = null;
+            callback.onReceiveValue(null);
+            Toast.makeText(this, "No file app is available to choose a recording.", Toast.LENGTH_LONG).show();
+            return false;
+        }
+    }
+    private void deliverFileChooserResult(int resultCode, Intent data) {
+        ValueCallback<Uri[]> callback = fileChooserCallback;
+        fileChooserCallback = null;
+        if (callback == null) return;
+        Uri[] uris = WebChromeClient.FileChooserParams.parseResult(resultCode, data);
+        // parseResult only reads getData(); a multi-select picker answers through ClipData.
+        if (uris == null && resultCode == RESULT_OK && data != null && data.getClipData() != null) {
+            ClipData clip = data.getClipData();
+            java.util.ArrayList<Uri> picked = new java.util.ArrayList<>();
+            for (int i = 0; i < clip.getItemCount(); i++) { Uri uri = clip.getItemAt(i).getUri(); if (uri != null) picked.add(uri); }
+            if (!picked.isEmpty()) uris = picked.toArray(new Uri[0]);
+        }
+        // Always answer, null on cancel, so the page can open the chooser again.
+        callback.onReceiveValue(uris);
+    }
+    private void cancelFileChooser() {
+        ValueCallback<Uri[]> callback = fileChooserCallback;
+        fileChooserCallback = null;
+        if (callback != null) callback.onReceiveValue(null);
     }
     private static String base64(byte[] bytes) { return Base64.encodeToString(bytes, Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING); }
     private void beginSignIn() {
@@ -208,7 +274,9 @@ public class MainActivity extends Activity {
     }
     public class Bridge {
         @JavascriptInterface public String getAppInfo() {
-            return result(() -> new JSONObject().put("versionCode", BuildConfig.VERSION_CODE).put("versionName", BuildConfig.VERSION_NAME));
+            return result(() -> new JSONObject().put("versionCode", BuildConfig.VERSION_CODE).put("versionName", BuildConfig.VERSION_NAME)
+                // Tells the page this build answers <input type="file"> (older builds silently ignore it).
+                .put("fileChooser", true));
         }
         @JavascriptInterface public void signIn() { runOnUiThread(() -> beginSignIn()); }
         @JavascriptInterface public String startRecording(String id, String userId, String title) {
@@ -259,7 +327,7 @@ public class MainActivity extends Activity {
                     try {
                         Intent save = new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
                             .setType("audio/wav").putExtra(Intent.EXTRA_TITLE, "Breeze-" + id + ".wav");
-                        startActivityForResult(save, 41);
+                        startActivityForResult(save, EXPORT_REQUEST);
                     } catch (RuntimeException error) {
                         preferences.edit().remove("exportId").remove("exportUser").apply();
                         Toast.makeText(MainActivity.this, "No file app is available to save audio.", Toast.LENGTH_LONG).show();

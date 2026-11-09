@@ -358,3 +358,25 @@ interrumpir la nueva grabación. **Meeting details** conserva el nombre opcional
 el nombre también se puede cambiar después de grabar. Estos cambios son web y
 llegan al APK instalado sin publicar otra firma. Probar en teléfono físico un
 inicio desde **New meeting**, reabrir con una grabación activa y detener/subir.
+
+## Subir una grabación existente
+
+**Upload a recording** (en `/meetings`) abre `/meetings/new?upload=1`: la tarjeta
+de subida aparece primero, abierta, y no inicia el micrófono. La tarjeta
+(`src/components/meetings/recording-upload.tsx`) es la misma en la web y en el
+grabador nativo: decodifica el archivo en la página (Web Audio dentro del WebView)
+y lo sube por la API de fragmentos, sin pasar por el servicio del teléfono.
+
+El WebView sólo abre el selector de archivos si `MainActivity` define un
+`WebChromeClient` con `onShowFileChooser` (selector del sistema, sin permisos de
+almacenamiento; `FileChooserTypes` traduce el `accept` a tipos MIME). Los builds
+con ese soporte devuelven `fileChooser: true` en `getAppInfo()`. Los APK anteriores
+ignoran el `<input type="file">` sin avisar, así que la web les muestra **Upload in
+your browser**: un enlace al mismo origen con `http:`, porque esos APK sólo abren
+fuera del WebView los enlaces que no son de su origen HTTPS; el sitio redirige a
+HTTPS. El usuario debe iniciar sesión también en el navegador.
+
+Mientras siga bloqueada la publicación de APK (ver "Diagnóstico actual"), el APK
+instalado sólo recibe el enlace al navegador. Al publicar un APK con el selector,
+verificar en un teléfono: elegir audio y video desde Archivos y Drive, cancelar y
+volver a abrir el selector, y que la reunión se cree y procese.

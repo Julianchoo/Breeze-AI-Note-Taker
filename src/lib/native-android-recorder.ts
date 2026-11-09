@@ -30,6 +30,25 @@ declare global {
 export function hasAndroidRecorder() {
   return typeof window !== "undefined" && !!window.BreezeAndroid;
 }
+/**
+ * Whether this APK opens the system file picker for `<input type="file">`. Builds without the
+ * WebView file chooser ignore the input silently, so the page must offer another way to upload.
+ */
+export function nativeFileChooserAvailable() {
+  try {
+    const raw = window.BreezeAndroid?.getAppInfo?.();
+    return !!raw && parseNativeResult<{ fileChooser?: boolean }>(raw).fileChooser === true;
+  } catch {
+    return false;
+  }
+}
+/**
+ * Same page in the phone's browser. Older APKs open only non-HTTPS links outside the WebView, so the
+ * `http:` origin is what leaves the app; the site redirects it to HTTPS.
+ */
+export function systemBrowserHref(path: string) {
+  return `http://${window.location.host}${path}`;
+}
 export function parseNativeResult<T>(raw: string): T {
   const result = JSON.parse(raw);
   if (!result || result.ok !== true) {

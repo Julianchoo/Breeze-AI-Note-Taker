@@ -11,11 +11,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { phoneAudioStatus } from "@/lib/audio-status";
 import {
-  checkedNativeRequest, exportNativeRecording, hasUnsentAudio, interruptedByCall, nativeRecordings, startNativeRecording, stopNativeRecording,
-  retireEmptyNativeRecording, syncNativeRecording, type NativeRecording,
+  checkedNativeRequest, exportNativeRecording, hasUnsentAudio, interruptedByCall, nativeFileChooserAvailable, nativeRecordings, startNativeRecording, stopNativeRecording,
+  retireEmptyNativeRecording, syncNativeRecording, systemBrowserHref, type NativeRecording,
 } from "@/lib/native-android-recorder";
 import { ListeningIndicator } from "./recorder/listening-indicator";
 import { RecordHandoff } from "./recorder/record-handoff";
+import { RecordingUpload } from "./recording-upload";
 
 /* Landing system classes (DESIGN.md "Landing system"). Markup only: the bridge calls above and below
    are unchanged. */
@@ -24,8 +25,10 @@ const SUMMARY =
 const ALERT =
   "text-destructive border-destructive/25 bg-destructive/5 mt-4 flex items-start gap-2 rounded-xl border px-4 py-3 text-sm";
 
-export function NativeMeetingRecorder({ userId, onFinished, autoStart = false }: {
+export function NativeMeetingRecorder({ userId, onFinished, autoStart = false, uploadFirst = false }: {
   userId: string; onFinished: (id: string) => void; autoStart?: boolean;
+  /** Upload mode: the upload card comes first, opened and focused. Never starts the microphone. */
+  uploadFirst?: boolean;
 }) {
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
@@ -35,6 +38,10 @@ export function NativeMeetingRecorder({ userId, onFinished, autoStart = false }:
   const [error, setError] = useState("");
   const [actionError, setActionError] = useState("");
   const [busy, setBusy] = useState(false);
+  // A file decode or upload is running in the upload card; recording stays locked meanwhile.
+  const [fileBusy, setFileBusy] = useState(false);
+  // Rendered only after hydration (NewMeeting), so the bridge can be read on the first render.
+  const [browserHref] = useState(() => nativeFileChooserAvailable() ? undefined : systemBrowserHref("/meetings/new?upload=1"));
   const [ready, setReady] = useState(false);
   const [now, setNow] = useState(0);
   const mounted = useRef(false);
@@ -243,10 +250,16 @@ export function NativeMeetingRecorder({ userId, onFinished, autoStart = false }:
   const latest = recordings.reduce<NativeRecording | undefined>((newest, item) => !newest || item.startedAt > newest.startedAt ? item : newest, undefined);
   const callStopped = !active && latest?.stopped && interruptedByCall(latest) ? latest : undefined;
   const seconds = active ? Math.max(0, Math.floor((now - active.startedAt) / 1000)) : 0;
+  // A file goes through the web upload (WebView file chooser, see docs/android.md), never the phone service.
+  const uploadCard = (
+    <RecordingUpload title={title} disabled={busy || !!active} onBusyChange={setFileBusy} onFinished={onFinished} browserHref={browserHref}
+      featured={uploadFirst} className={uploadFirst ? "[animation-delay:80ms]" : "[animation-delay:160ms]"} />
+  );
   return (
     <div className="flex flex-col gap-6">
+      {uploadFirst ? uploadCard : null}
       {/* From the Record circle (autoStart) the well morphs in, so the card skips its own entrance. */}
-      <section className={`bg-card rounded-3xl border p-3 shadow-xs ${autoStart ? "" : "animate-landing-rise [animation-delay:80ms]"}`}>
+      <section className={`bg-card rounded-3xl border p-3 shadow-xs ${autoStart ? "" : uploadFirst ? "animate-landing-rise [animation-delay:160ms]" : "animate-landing-rise [animation-delay:80ms]"}`}>
         {/* Outer 24px radius, 12px gap: 12px well. Receives the Record circle's handoff morph. */}
         <RecordHandoff>
           <div
@@ -271,7 +284,7 @@ export function NativeMeetingRecorder({ userId, onFinished, autoStart = false }:
         </RecordHandoff>
         <div className="px-3 pt-6 pb-3">
           <Button className="ease-fluid h-14 w-full text-base font-semibold duration-300 hover:-translate-y-0.5 active:translate-y-0" size="lg" variant={active ? "destructive" : "default"}
-            disabled={busy || !ready} onClick={() => void (active ? stop() : start())}>
+            disabled={busy || !ready || (fileBusy && !active)} onClick={() => void (active ? stop() : start())}>
             {busy ? <CircleNotchIcon className="animate-spin" /> : active ? <StopIcon weight="fill" /> : <MicrophoneIcon weight="fill" />}
             {busy ? "Please wait…" : active ? "Stop and save meeting" : "Start recording"}
           </Button>
@@ -351,6 +364,7 @@ export function NativeMeetingRecorder({ userId, onFinished, autoStart = false }:
           {recordings.some((item) => item.stopped && !item.finished) ? <Button variant="secondary" className="ease-fluid m-3 font-semibold duration-300" disabled={busy} onClick={() => void refresh()}><UploadSimpleIcon />Retry uploading</Button> : null}
         </details>
       ) : null}
+      {uploadFirst ? null : uploadCard}
     </div>
   );
 }
